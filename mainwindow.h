@@ -20,6 +20,7 @@
 #include <QDateTime>
 #include <QDialog>
 #include "ui_paramdialog.h"
+#include "ui_collision.h"
 
 namespace Ui {
 class MainWindow;
@@ -35,7 +36,8 @@ public:
 
 private:
     Ui::MainWindow *ui;
-    Ui::Dialog uid;
+    Ui::pDialog uip;
+    Ui::cDialog uic;
     void loadSettings();
     void saveSettings();
     QtCharts::QChartView *chartView;
@@ -58,6 +60,12 @@ private:
     bool dat = true;
     bool par = true;
     QDialog *param = new QDialog(this);
+    QDialog *coll = new QDialog(this);
+    void writeParam(QString);
+    QStringList elements;
+    int check;
+    void collision(QString, QString, QString, QString);
+    int error = 0;
 
 private slots:
     void resetDialog(int);
@@ -73,6 +81,9 @@ private slots:
     void load(QString);
     void checkBoxes();
     void accept();
+    void save1();
+    void save2();
+    void resetColl(int);
 };
 
 #endif // MAINWINDOW_H

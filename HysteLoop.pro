@@ -23,4 +23,5 @@ HEADERS  += mainwindow.h \
     extfsm.h
 
 FORMS    += mainwindow.ui \
-    paramdialog.ui
+    paramdialog.ui \
+    collision.ui
