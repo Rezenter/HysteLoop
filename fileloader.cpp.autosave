@@ -13,12 +13,7 @@ FileLoader::FileLoader(QString path){
             QString line = stream->readLine();
             if(line.length() > 0 && flag){
                 QStringList args = line.split("\t");
-                if(args.length() < 10){
-
-                }else{
-
-
-                }
+                
             }else{
                 if(line.length() == 0){
                     flag = true;

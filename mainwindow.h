@@ -21,6 +21,7 @@
 #include <QDialog>
 #include "ui_paramdialog.h"
 #include "ui_collision.h"
+#include <QSortFilterProxyModel>
 
 namespace Ui {
 class MainWindow;
@@ -66,6 +67,9 @@ private:
     int check;
     void collision(QString, QString, QString, QString);
     int error = 0;
+    QStringList dats;
+    QSortFilterProxyModel proxy;
+    void draw(QString);
 
 private slots:
     void resetDialog(int);
@@ -76,7 +80,6 @@ private slots:
     void zP();
     void zM();
     void zO();
-    void tmp(int, int);
     void buildFileTable(QString);
     void load(QString);
     void checkBoxes();
@@ -84,6 +87,7 @@ private slots:
     void save1();
     void save2();
     void resetColl(int);
+    void selectionChanged(QModelIndex, QModelIndex);
 };
 
 #endif // MAINWINDOW_H

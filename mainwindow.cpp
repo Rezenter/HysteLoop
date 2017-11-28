@@ -11,20 +11,20 @@
 
  *  params dialog
 
- *      fill fields when file selected
+ *      fill fields when file selected/changed
  *      param file in correlation with SM`s programm
  *      save dialog size
  *  multiple loop comparaison
  *      moovable legend
  *      mouse position
  *  multiple file selection from the keyboard
- *      file selection dialog for measurments with multiple pair variants
+
  *  export dialog
  *      export in correlation with SM`s programm
  *  load from param file
  *  calculate coercitivity, amplitude and offset
  *  errors dialog
- *  table filters
+
  *  zoom
  *      mouse zoom
  *  smooth
@@ -50,15 +50,16 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->fileTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui->fileTable->setSelectionMode(QAbstractItemView::ExtendedSelection);
     ui->fileTable->horizontalHeader()->setStretchLastSection(true);
+    ui->fileTable->setColumnHidden(6, true); //hide comment
     QObject::connect(ui->folderButton, &QPushButton::pressed, this, &MainWindow::folderButton);
     QObject::connect(ui->exportButton, &QPushButton::pressed, this, &MainWindow::exportButton);
     QObject::connect(ui->paramButton, &QPushButton::pressed, this, &MainWindow::paramButton);
     QObject::connect(ui->zoomOButton, &QPushButton::pressed, this, &MainWindow::zO);
     QObject::connect(ui->zoomPButton, &QPushButton::pressed, this, &MainWindow::zP);
     QObject::connect(ui->zoomMButton, &QPushButton::pressed, this, &MainWindow::zM);
-    QObject::connect(ui->splitter, &QSplitter::splitterMoved, this, &MainWindow::tmp);
     QObject::connect(model, &QFileSystemModel::directoryLoaded, this, &MainWindow::buildFileTable);
     QObject::connect(refresh, &QFileSystemWatcher::directoryChanged, this, &MainWindow::load);
+    QObject::connect(ui->fileTable->selectionModel(), &QItemSelectionModel::currentRowChanged, this, &MainWindow::selectionChanged);
     QObject::connect(ui->datBox, &QCheckBox::clicked, this, &MainWindow::checkBoxes);
     QObject::connect(ui->parBox, &QCheckBox::clicked, this, &MainWindow::checkBoxes);
     loadSettings();
@@ -83,6 +84,7 @@ MainWindow::MainWindow(QWidget *parent) :
     coll->setWindowTitle("WARNING! Collision occured.");
     coll->setModal(true);
     resetColl(1);
+    ui->commentLine->setText("");
 }
 
 MainWindow::~MainWindow()
@@ -176,6 +178,7 @@ void MainWindow::saveSettings(){
 
 void MainWindow::buildFileTable(QString d){
     Q_UNUSED(d);
+    dats.clear();
     params.clear();
     table->removeAll();
     ui->dataDirLabel->setText(dataDir);
@@ -184,70 +187,105 @@ void MainWindow::buildFileTable(QString d){
     for(int i = 0; i < model->rowCount(model->index(dataDir)); i++){
         childIndex = model->index(i, 0, model->index(dataDir));
         if(model->fileName(childIndex).endsWith(".csv", Qt::CaseInsensitive)){
+            dats.append(model->fileName(childIndex));
             if(ui->datBox->isChecked()){
                 table->insertRow(tableRow, QModelIndex());
-                for(int j = 0; j < table->columnCount(); j++){
-                    tmpInd = table->index(tableRow, j, QModelIndex());
-                    switch (j) {
-                        case 0:
-                            table->setData(tmpInd, model->fileName(childIndex), Qt::EditRole);
-                        break;
-
-                        case 5:
-                            table->setData(tmpInd, model->fileInfo(childIndex).lastModified().toString("dd.MM.yyyy   HH:m"), Qt::EditRole);
-                        break;
-
-                        default:
-                            //qDebug() << i << j;
-                        break;
-                    }
-                }
+                table->setData(table->index(tableRow, 0, QModelIndex()), model->fileName(childIndex), Qt::EditRole);
+                table->setData(table->index(tableRow, 5, QModelIndex()), model->fileInfo(childIndex).lastModified().toString("dd.MM.yyyy   HH:mm"), Qt::EditRole);
                 tableRow++;
             }
         }else if(model->fileName(childIndex).endsWith(".PAR", Qt::CaseInsensitive)){
             QSettings *par = new QSettings(dataDir + "/" + model->fileName(childIndex), QSettings::IniFormat);
             QString tmp;
-            par->beginGroup("common");
-                /*
-                par->setValue("sample", uid.sampleEdit->text());
-                par->setValue("angle", uid.angleEdit->text());
-                par->setValue("amplitude", uid.ampEdit->text());
-                par->setValue("rating", uid.ratingEdit->text());
-                par->setValue("comment", uid.commentEdit->toPlainText());
-                */
-            par->endGroup();
+            if(ui->parBox->isChecked()){
+                table->insertRow(tableRow, QModelIndex());
+                table->setData(table->index(tableRow, 0, QModelIndex()), model->fileName(childIndex), Qt::EditRole);
+                table->setData(table->index(tableRow, 5, QModelIndex()), model->fileInfo(childIndex).lastModified().toString("dd.MM.yyyy   HH:mm"), Qt::EditRole);
+                par->beginGroup("common");
+                    table->setData(table->index(tableRow, 1, QModelIndex()), par->value("sample", "unknown").toString(), Qt::EditRole);
+                    table->setData(table->index(tableRow, 4, QModelIndex()), par->value("rating", "unknown").toString(), Qt::EditRole);
+                    table->setData(table->index(tableRow, 3, QModelIndex()), par->value("angle", "unknown").toString(), Qt::EditRole);
+                    table->setData(table->index(tableRow, 6, QModelIndex()), par->value("comment", "unknown").toString(), Qt::EditRole);
+                par->endGroup();
+                par->beginGroup("file1");
+                    tmp = par->value("element", "").toString();
+                par->endGroup();
+                if(tmp.length() > 0 && tmp != "Undefined"){
+                    tmp = tmp.left(2);
+                }else{
+                    par->beginGroup("file2");
+                        tmp = par->value("element", "--").toString().left(2);
+                    par->endGroup();
+                }
+                if(tmp == "Un"){
+                    tmp = "--";
+                }
+                table->setData(table->index(tableRow, 2, QModelIndex()), tmp, Qt::EditRole);
+                tableRow++;
+            }
             par->beginGroup("file1");
                 tmp = par->value("filename", "none").toString();
                 if(tmp != "none"){
                     params.insertMulti(tmp, model->fileName(childIndex));
                 }
-                /*
-                par->setValue("element", uid.element1Edit->text());
-                par->setValue("energy", uid.energy1Edit->text());
-                par->setValue("rating", uid.rating1Edit->text());
-                */
             par->endGroup();
             par->beginGroup("file2");
                 tmp = par->value("filename", "none").toString();
                 if(tmp != "none"){
                     params.insertMulti(tmp, model->fileName(childIndex));
                 }
-                /*
-                par->setValue("element", uid.element2Edit->text());
-                par->setValue("energy", uid.energy2Edit->text());
-                par->setValue("rating", uid.rating2Edit->text());
-                */
             par->endGroup();
             delete par;
-            //params.insert()
-            //treat as param
-            //save without extension
-            //fill table
+
         }else{
             //wtf, do nothing
         }
     }
     ui->fileTable->sortByColumn(0, Qt::AscendingOrder);
+    proxy.setSourceModel(table);
+    proxy.setFilterKeyColumn(0);
+    QString entry;
+    foreach (entry, dats) {
+        bool flag = false;
+        proxy.setFilterFixedString(entry);
+        QModelIndex matchingIndex = proxy.mapToSource(proxy.index(0,0));
+        if(matchingIndex.isValid()){
+            QString element;
+            QString rating;
+            QSettings *par = new QSettings(dataDir + "/" + params.value(entry), QSettings::IniFormat);
+            par->beginGroup("common");
+                table->setData(table->index(matchingIndex.row(), 1, QModelIndex()), par->value("sample", "unknown").toString(), Qt::EditRole);
+                table->setData(table->index(matchingIndex.row(), 3, QModelIndex()), par->value("angle", "unknown").toString(), Qt::EditRole);
+                table->setData(table->index(matchingIndex.row(), 6, QModelIndex()), par->value("comment", "unknown").toString(), Qt::EditRole);
+            par->endGroup();
+            par->beginGroup("file1");
+                if(par->value("filename").toString() == entry){
+                    rating = par->value("rating", "unknown").toString();
+                }else{
+                    flag = true;
+                }
+                element = par->value("element", "").toString();
+            par->endGroup();
+            if(element.length() > 0 && element != "Undefined"){
+                element = element.left(2);
+            }else{
+                par->beginGroup("file2");
+                    element = par->value("element", "--").toString().left(2);
+                par->endGroup();
+            }
+            if(element == "Un"){
+                element = "--";
+            }
+            if(flag){
+                par->beginGroup("file2");
+                    rating = par->value("rating", "unknown").toString();
+                par->endGroup();
+            }
+            delete(par);
+            table->setData(table->index(matchingIndex.row(), 2, QModelIndex()), element, Qt::EditRole);
+            table->setData(table->index(matchingIndex.row(), 4, QModelIndex()), rating, Qt::EditRole);
+        }
+    }
 }
 
 void MainWindow::folderButton(){
@@ -291,10 +329,6 @@ void MainWindow::zM(){
 }
 
 void MainWindow::zO(){
-
-}
-
-void MainWindow::tmp(int pos, int index){
 
 }
 
@@ -660,4 +694,18 @@ void MainWindow::collision(QString n, QString p, QString v1, QString v2){
     uic.value1Label->setText(v1);
     uic.value2Label->setText(v2);
     coll->show();
+}
+
+void MainWindow::selectionChanged(QModelIndex curr, QModelIndex prev){
+    Q_UNUSED(prev);
+    ui->commentLine->setText(table->data(table->index(curr.row(), 6, QModelIndex()), Qt::DisplayRole).toString());
+    //clear chart
+    foreach (QModelIndex ind, ui->fileTable->selectionModel()->selectedRows(0)) {
+        draw(table->data(table->index(ind.row(), 0, QModelIndex()), Qt::DisplayRole).toString());
+    }
+    //setup chart
+}
+
+void MainWindow::draw(QString name){
+    FileLoader loader(name);
 }

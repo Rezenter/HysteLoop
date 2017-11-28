@@ -2,10 +2,10 @@
 #define FILELOADER_H
 
 #include <QString>
-#include <QFile>
-#include <QTextStream>
 #include <QVector>
 #include <QPair>
+
+
 
 //copypaste, fix
 

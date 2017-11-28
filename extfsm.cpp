@@ -69,6 +69,9 @@ ExtFSM::ExtFSM(QObject *parent)
               case 5:
                   return tr("date");
 
+              case 6:
+                  return tr("comment");
+
               default:
                   return QVariant();
           }

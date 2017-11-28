@@ -37,7 +37,7 @@ class ExtFSM : public QAbstractTableModel
 
 
  private:
-     int cCount = 6;
+     int cCount = 7; //comment is hidden
      QList<QList<QString>> dataList;
  };
 
