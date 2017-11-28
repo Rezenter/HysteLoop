@@ -2,12 +2,13 @@
 #define FILELOADER_H
 
 #include <QString>
-#include <QFile>
-#include <QTextStream>
 #include <QVector>
 #include <QPair>
+#include "csvtable.h"
 
-//copypaste, fix
+
+//http:doc.qt.io/qt-5/qabstracttablemodel.html
+//subclass QAbstractTableModel
 
 class FileLoader
 {
@@ -16,8 +17,6 @@ public:
     ~FileLoader();
 
 private:
-    QFile *file;
-    QTextStream *stream;
 };
 
 #endif // FILELOADER_H

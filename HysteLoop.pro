@@ -16,11 +16,13 @@ DEFINES += QT_DEPRECATED_WARNINGS
 SOURCES += main.cpp\
         mainwindow.cpp \
     fileloader.cpp \
-    extfsm.cpp
+    extfsm.cpp \
+    csvtable.cpp
 
 HEADERS  += mainwindow.h \
     fileloader.h \
-    extfsm.h
+    extfsm.h \
+    csvtable.h
 
 FORMS    += mainwindow.ui \
     paramdialog.ui \

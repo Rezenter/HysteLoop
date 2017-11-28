@@ -84,7 +84,6 @@ MainWindow::MainWindow(QWidget *parent) :
     coll->setWindowTitle("WARNING! Collision occured.");
     coll->setModal(true);
     resetColl(1);
-    ui->commentLine->setText("");
 }
 
 MainWindow::~MainWindow()

@@ -3,8 +3,6 @@
 #include <QFont>
 #include <QBrush>
 
-//copypaste, fix
-
 ExtFSM::ExtFSM(QObject *parent)
      : QAbstractTableModel(parent)
  {
@@ -75,6 +73,8 @@ ExtFSM::ExtFSM(QObject *parent)
               default:
                   return QVariant();
           }
+      }else{
+          return section;
       }
       return QVariant();
   }

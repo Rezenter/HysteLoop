@@ -3,8 +3,6 @@
 
 #include <QAbstractTableModel>
 
-//copypaste, fix
-
 class ExtFSM : public QAbstractTableModel
  {
 
