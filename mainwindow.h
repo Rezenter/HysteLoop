@@ -6,6 +6,7 @@
 #include <QLineSeries>
 #include <QChartView>
 #include <QValueAxis>
+#include <QLineSeries>
 #include <QSettings>
 #include <QFileSystemModel>
 #include "extfsm.h"
@@ -22,6 +23,7 @@
 #include "ui_paramdialog.h"
 #include "ui_collision.h"
 #include <QSortFilterProxyModel>
+#include <QMouseEvent>
 
 namespace Ui {
 class MainWindow;
@@ -87,7 +89,8 @@ private slots:
     void save1();
     void save2();
     void resetColl(int);
-    void selectionChanged(QModelIndex, QModelIndex);
+    void selectionChanged(const QItemSelection, const QItemSelection);
+    void reCalc();
 };
 
 #endif // MAINWINDOW_H

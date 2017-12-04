@@ -5,10 +5,13 @@
 /*
  *To-do:
  *  base
+ *      separate loading and drawing functions
+ *      calculate at loading
+ *      move loading to thread
  *  save/load
 
 
-
+ *  i-zero normalisation
  *  params dialog
 
  *      fill fields when file selected/changed
@@ -17,6 +20,8 @@
  *  multiple loop comparaison
  *      moovable legend
  *      mouse position
+ *          subclass smth in order to modify mousemoveevent
+ *      loading progress
  *  multiple file selection from the keyboard
 
  *  export dialog
@@ -46,6 +51,16 @@ MainWindow::MainWindow(QWidget *parent) :
     chartView = new QtCharts::QChartView(chart);
     ui->splitter->addWidget(chartView);
     chartView->show();
+    chart->addAxis(axisX, Qt::AlignBottom);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    axisX->setTickCount(11);
+    axisX->setMinorTickCount(5);
+    axisX->setTitleText("Magnetic flux density [mT]");
+    axisX->setMax(300);
+    axisX->setMin(-300);
+    axisY->setTickCount(11);
+    axisY->setMinorTickCount(5);
+    axisY->setTitleText("Signal [arb.u.]");
     ui->fileTable->setModel(table);
     ui->fileTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui->fileTable->setSelectionMode(QAbstractItemView::ExtendedSelection);
@@ -59,9 +74,10 @@ MainWindow::MainWindow(QWidget *parent) :
     QObject::connect(ui->zoomMButton, &QPushButton::pressed, this, &MainWindow::zM);
     QObject::connect(model, &QFileSystemModel::directoryLoaded, this, &MainWindow::buildFileTable);
     QObject::connect(refresh, &QFileSystemWatcher::directoryChanged, this, &MainWindow::load);
-    QObject::connect(ui->fileTable->selectionModel(), &QItemSelectionModel::currentRowChanged, this, &MainWindow::selectionChanged);
+    QObject::connect(ui->fileTable->selectionModel(), &QItemSelectionModel::selectionChanged, this, &MainWindow::selectionChanged);
     QObject::connect(ui->datBox, &QCheckBox::clicked, this, &MainWindow::checkBoxes);
     QObject::connect(ui->parBox, &QCheckBox::clicked, this, &MainWindow::checkBoxes);
+
     loadSettings();
     uip.setupUi(param);
     uip.element1Box->setEditable(true);
@@ -293,6 +309,7 @@ void MainWindow::folderButton(){
                                                          QFileDialog::DontUseNativeDialog);
         if(dir.length() != 0){
             dataDir = dir;
+            load(dataDir);
             buildFileTable(dataDir);
         }
 }
@@ -312,7 +329,16 @@ void MainWindow::paramButton(){
 }
 
 void MainWindow::exportButton(){
-
+    foreach (QtCharts::QLineSeries *ser, series) {
+        QString name = dataDir + "/" + ser->name() + ".txt";
+        QFile file(name);
+        file.open(QIODevice::WriteOnly);
+        QTextStream stream(&file);
+        foreach (QPointF point, ser->points()) {
+            stream << point.x() << "    " << point.y() << "\n";
+        }
+        file.close();
+    }
 }
 
 void MainWindow::filter(){
@@ -583,7 +609,7 @@ void MainWindow::writeParam(QString name){
         par->setValue("element", uip.element2Box->currentText());
         par->setValue("energy", uip.energy2Edit->text());
         par->setValue("rating", uip.rating2Edit->text());
-        par->setValue("sensetivity", uip.sens1Box->value());
+        par->setValue("sensetivity", uip.sens2Box->value());
     par->endGroup();
     delete par;
 }
@@ -695,16 +721,97 @@ void MainWindow::collision(QString n, QString p, QString v1, QString v2){
     coll->show();
 }
 
-void MainWindow::selectionChanged(QModelIndex curr, QModelIndex prev){
+void MainWindow::selectionChanged(const QItemSelection curr, const QItemSelection prev){
     Q_UNUSED(prev);
-    ui->commentLine->setText(table->data(table->index(curr.row(), 6, QModelIndex()), Qt::DisplayRole).toString());
+    Q_UNUSED(curr);
+    //ui->commentLine->setText(table->data(table->index(curr.row(), 6, QModelIndex()), Qt::DisplayRole).toString()); //why shows comment for csv
     //clear chart
-    foreach (QModelIndex ind, ui->fileTable->selectionModel()->selectedRows(0)) {
-        draw(table->data(table->index(ind.row(), 0, QModelIndex()), Qt::DisplayRole).toString());
+    //ask to clear, if nothing is selected
+    QStringList names;
+    foreach (QtCharts::QLineSeries *ser, series) {
+        names.append(ser->name());
     }
-    //setup chart
+    foreach (QModelIndex ind, ui->fileTable->selectionModel()->selectedRows()) {
+        QString tmp = table->data(table->index(ind.row(), 0, QModelIndex()), Qt::DisplayRole).toString();
+        if(!names.contains(tmp)){
+            draw(tmp);
+        }
+        names.removeAll(tmp);
+    }
+    qreal xMin = 1000;
+    qreal xMax = -1000;
+    qreal yMin = 1000;
+    qreal yMax = -1000;
+    foreach (QtCharts::QLineSeries *ser, series) {
+        if(names.contains(ser->name())){
+            chart->removeSeries(ser);
+            series.removeAll(ser);
+            delete ser;
+        }else{
+            foreach (QPointF p, ser->points()) {
+                if(p.x() > xMax){
+                    xMax = p.x();
+                }else if(p.x() < xMin){
+                    xMin = p.x();
+                }
+                if(p.y() > yMax){
+                    yMax = p.y();
+                }else if(p.y() < yMin){
+                    yMin = p.y();
+                }
+            }
+        }
+    }
+    //axisX->setMax(xMax);
+    //axisX->setMin(xMin);
+    axisY->setMax(yMax);
+    axisY->setMin(yMin);
 }
 
 void MainWindow::draw(QString name){
-    FileLoader loader(name);
+    FileLoader loader(dataDir, name);
+    QtCharts::QLineSeries *ser = new QtCharts::QLineSeries();
+    QPair<int, QVector<QPair<double, QPair<double, double>>>> signal = loader.getSignal();
+    if(signal.first == -1){
+        //sens dialog
+        //signal.first = 50;
+        //ask sensetivity for single files
+    }
+    QPair<int, QVector<QPair<double, QPair<double, double>>>> bgData = loader.getBackground();
+    QPair<double, QPair<double, double>> point;
+    QList<QPointF> dots;
+    if(bgData.second.length() > 0){
+        if(bgData.first == -1){
+            //sens dialog
+            //bgData.first = 10;
+        }
+        int ind = 0;
+        foreach (point, bgData.second) {
+            dots.append(QPointF(point.first, (signal.second.at(ind).second.first*signal.first/point.second.second)/(point.second.first*bgData.first/point.second.second)));
+            ind++;
+        }
+    }else{
+        foreach (point, signal.second) {
+            dots.append(QPointF(point.first, point.second.first*signal.first/point.second.second));
+        }
+    }
+    int quater = dots.length()/4;
+    double h = -0.5*dots.at(quater).y()-dots.at(quater*3).y()*0.5;
+    foreach (QPointF dot, dots) {
+        ser->append(dot.x(), dot.y() + h);
+    }
+    ser->setName(name);
+    series.append(ser);
+    chart->addSeries(series.last());
+    ser->attachAxis(axisX);
+    ser->attachAxis(axisY);
+}
+
+void MainWindow::reCalc(){
+    foreach (QtCharts::QLineSeries *ser, series) {
+        chart->removeSeries(ser);
+        series.removeAll(ser);
+        delete ser;
+    }
+    selectionChanged(QItemSelection(), QItemSelection());
 }
