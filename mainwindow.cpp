@@ -5,13 +5,16 @@
 /*
  *To-do:
  *  base
+ *      create common grid instead of finding zero
  *      separate loading and drawing functions
  *      calculate at loading
  *      move loading to thread
+ *      check loading
+ *          change vectors to lists
+ *          change doubles to floats where possible
  *  save/load
 
 
- *  i-zero normalisation
  *  params dialog
 
  *      fill fields when file selected/changed
@@ -23,9 +26,10 @@
  *          subclass smth in order to modify mousemoveevent
  *      loading progress
  *  multiple file selection from the keyboard
-
+ *  smoothing count spinBox with only odd numbers
  *  export dialog
  *      export in correlation with SM`s programm
+ *      export name including more data
  *  load from param file
  *  calculate coercitivity, amplitude and offset
  *  errors dialog
@@ -58,9 +62,23 @@ MainWindow::MainWindow(QWidget *parent) :
     axisX->setTitleText("Magnetic flux density [mT]");
     axisX->setMax(300);
     axisX->setMin(-300);
+    xZeroSer = new QtCharts::QLineSeries();
+    xZeroSer->append(0, -10);
+    xZeroSer->append(0, 10);
+    chart->addSeries(xZeroSer);
+    xZeroSer->attachAxis(axisX);
+    xZeroSer->attachAxis(axisY);
+    xZeroSer->setName("(0, y)");
     axisY->setTickCount(11);
     axisY->setMinorTickCount(5);
     axisY->setTitleText("Signal [arb.u.]");
+    yZeroSer = new QtCharts::QLineSeries();
+    yZeroSer->append(-300, 0);
+    yZeroSer->append(300, 0);
+    chart->addSeries(yZeroSer);
+    yZeroSer->attachAxis(axisX);
+    yZeroSer->attachAxis(axisY);
+    yZeroSer->setName("(x, 0)");
     ui->fileTable->setModel(table);
     ui->fileTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui->fileTable->setSelectionMode(QAbstractItemView::ExtendedSelection);
@@ -112,6 +130,8 @@ MainWindow::~MainWindow()
         delete &delTmp;
     }
     //delete axis?
+    delete xZeroSer;
+    delete yZeroSer;
     delete chart;
     delete chartView;
     delete ui;
@@ -738,9 +758,6 @@ void MainWindow::selectionChanged(const QItemSelection curr, const QItemSelectio
         }
         names.removeAll(tmp);
     }
-    qreal xMin = 1000;
-    qreal xMax = -1000;
-    qreal yMin = 1000;
     qreal yMax = -1000;
     foreach (QtCharts::QLineSeries *ser, series) {
         if(names.contains(ser->name())){
@@ -749,15 +766,10 @@ void MainWindow::selectionChanged(const QItemSelection curr, const QItemSelectio
             delete ser;
         }else{
             foreach (QPointF p, ser->points()) {
-                if(p.x() > xMax){
-                    xMax = p.x();
-                }else if(p.x() < xMin){
-                    xMin = p.x();
-                }
                 if(p.y() > yMax){
                     yMax = p.y();
-                }else if(p.y() < yMin){
-                    yMin = p.y();
+                }else if(p.y() < (-yMax)){
+                    yMax = -p.y();
                 }
             }
         }
@@ -765,7 +777,7 @@ void MainWindow::selectionChanged(const QItemSelection curr, const QItemSelectio
     //axisX->setMax(xMax);
     //axisX->setMin(xMin);
     axisY->setMax(yMax);
-    axisY->setMin(yMin);
+    axisY->setMin(-yMax);
 }
 
 void MainWindow::draw(QString name){

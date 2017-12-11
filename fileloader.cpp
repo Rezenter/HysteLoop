@@ -86,14 +86,52 @@ QPair<int, QVector<QPair<double, QPair<double, double>>>> FileLoader::load(){
         z = data.data(data.index(i, 22, QModelIndex()), Qt::DisplayRole).toDouble();
         curr.second.append(QPair<double, QPair<double, double>>(x*xScale*xMult, QPair<double, double>((y + yZero)*yScale, z*zScale)));
     }
-    double zeroVal = curr.second.at(0).first;
-    int zeroIndex = 1;
-    while(zeroVal*data.data(data.index(zeroIndex, 16, QModelIndex()), Qt::DisplayRole).toDouble() > 0 &&  zeroVal < 0){
-        zeroVal = data.data(data.index(zeroIndex, 16, QModelIndex()), Qt::DisplayRole).toDouble();
-        zeroIndex++;
+    int zeroIndex;
+    double pv = smoothedX(curr.second, curr.second.length() - 1);
+    double cv = smoothedX(curr.second, 0);
+    double nv = smoothedX(curr.second, 1);
+    if(cv >= 0 && pv < 0 && cv <= nv){
+        zeroIndex = 0;
+    }else{
+        zeroIndex = 1;
+        pv = cv;
+        cv = nv;
+        nv = smoothedX(curr.second, zeroIndex + 1);
+        while(!((cv >= 0) && (pv < 0) && (cv <= nv))){
+            zeroIndex++;
+            pv = cv;
+            cv = nv;
+            nv = smoothedX(curr.second, zeroIndex);
+        }
     }
     QVector<QPair<double, QPair<double, double>>> tmp = curr.second.mid(0, zeroIndex);
     curr.second.remove(0, zeroIndex);
     curr.second.append(tmp);
     return curr;
+}
+
+double FileLoader::smoothedX(QVector<QPair<double, QPair<double, double>>> data, int ind, int count){
+    //count is odd!
+    double res = 0;
+    if(count > 0){
+        if(data.length() < count){
+            for(int i = 0; i < data.length(); i++){
+                res += data.at(i).first;
+            }
+            res = res/data.length();
+        }else{
+            int c = count;
+            for(int i = ind - (count-1)/2; c > 0; c --){
+                if(i < 0){
+                    i = data.length() + i;
+                }else if(i >= data.length()){
+                    i = i - data.length();
+                }
+                res += data.at(i).first;
+                i++;
+            }
+            res = res/count;
+        }
+    }
+    return res;
 }

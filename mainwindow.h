@@ -72,6 +72,8 @@ private:
     QStringList dats;
     QSortFilterProxyModel proxy;
     void draw(QString);
+    QtCharts::QLineSeries *xZeroSer;
+    QtCharts::QLineSeries *yZeroSer;
 
 private slots:
     void resetDialog(int);

@@ -30,6 +30,7 @@ private:
     QPair<int, QVector<QPair<double, QPair<double, double>>>> background;
     bool loaded = false;
     QPair<int, QVector<QPair<double, QPair<double, double>>>> load();
+    double smoothedX(QVector<QPair<double, QPair<double, double>>> data, int ind, int count=5);
 };
 
 #endif // FILELOADER_H
