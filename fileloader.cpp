@@ -6,10 +6,10 @@ FileLoader::FileLoader(QString path, QString name){
     file = new QFile(path + "/" + name);
     file->open(QIODevice::ReadOnly);
     stream = new QTextStream(file);
-    if(name.endsWith("csv", Qt::CaseInsensitive)){
+    if(name.endsWith(".csv", Qt::CaseInsensitive)){
         signal = load();
         signal.first = -1;
-    }else if(name.endsWith("par", Qt::CaseInsensitive)){
+    }else if(name.endsWith(".par", Qt::CaseInsensitive)){
         file->close();
         delete stream;
         QSettings par(path + "/" + name, QSettings::IniFormat);

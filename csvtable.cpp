@@ -50,13 +50,13 @@ bool CSVTable::setHeaderData(int section, Qt::Orientation orientation, const QVa
 
 int CSVTable::rowCount(const QModelIndex &parent) const
 {
-    Q_UNUSED(parent);   //parrent is not supported yet
+    Q_UNUSED(parent);   //parent is not supported yet
     return storage.length();
 }
 
 int CSVTable::columnCount(const QModelIndex &parent) const
 {
-    Q_UNUSED(parent);   //parrent is not supported yet
+    Q_UNUSED(parent);   //parent is not supported yet
     if(storage.length() > 0)
         return storage.at(0).length();
     return 0;
@@ -70,7 +70,7 @@ QVariant CSVTable::data(const QModelIndex &index, int role) const
         case Qt::DisplayRole:
             return storage.at(index.row()).at(index.column());
         default:
-            return QVariant(); //other roles not supported yet
+            return QVariant(); //other roles are not supported yet
     }
     qDebug() << "last";
     return QVariant();
@@ -78,7 +78,7 @@ QVariant CSVTable::data(const QModelIndex &index, int role) const
 
 bool CSVTable::setData(const QModelIndex &index, const QVariant &value, int role)
 {
-    if (index.isValid() && data(index, role) != value) { //mb additional bounds check needed
+    if (index.isValid() && data(index, role) != value) { //mb additional bounds check is needed
         QVector<QVariant> tmp = storage.at(index.row());
         tmp.replace(index.column(), value);
         storage.replace(index.row(), tmp);
@@ -93,12 +93,12 @@ Qt::ItemFlags CSVTable::flags(const QModelIndex &index) const
     if (!index.isValid())
         return Qt::NoItemFlags;
 
-    return Qt::ItemIsEditable; //other flags not supported yet
+    return Qt::ItemIsEditable; //other flags are not supported yet
 }
 
 bool CSVTable::insertRows(int row, int count, const QModelIndex &parent)
 {
-    Q_UNUSED(parent);   //parrent is not supported yet
+    Q_UNUSED(parent);   //parent is not supported yet
     if(row < 0){
         row = 0;
     }else if(row > rowCount()){
@@ -121,7 +121,7 @@ bool CSVTable::insertRows(int row, int count, const QModelIndex &parent)
 bool CSVTable::insertColumns(int column, int count, const QModelIndex &parent)
 {
     Q_UNUSED(parent);
-    //parrent is not supported yet
+    //parent is not supported yet
     if(column < 0){
         column = 0;
     }else if(column >= columnCount()){
@@ -149,7 +149,7 @@ bool CSVTable::insertColumns(int column, int count, const QModelIndex &parent)
 bool CSVTable::removeRows(int row, int count, const QModelIndex &parent)
 {
     Q_UNUSED(parent);
-    //parrent is not supported yet
+    //parent is not supported yet
     if(row >= 0 && row+count <= rowCount()){
         beginRemoveRows(parent, row, row + count - 1);
         storage.remove(row, count);
@@ -163,7 +163,7 @@ bool CSVTable::removeRows(int row, int count, const QModelIndex &parent)
 bool CSVTable::removeColumns(int column, int count, const QModelIndex &parent)
 {
     Q_UNUSED(parent);
-    //parrent is not supported yet
+    //parent is not supported yet
     if(column >= 0 && column+count <= columnCount()){
         beginRemoveColumns(parent, column, column + count - 1);
         foreach (QVector<QVariant> row, storage) {

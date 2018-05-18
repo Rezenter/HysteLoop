@@ -24,6 +24,4 @@ HEADERS  += mainwindow.h \
     extfsm.h \
     csvtable.h
 
-FORMS    += mainwindow.ui \
-    paramdialog.ui \
-    collision.ui
+FORMS    += mainwindow.ui

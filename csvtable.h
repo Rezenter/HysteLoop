@@ -23,9 +23,15 @@ public:
     bool removeColumns(int column, int count, const QModelIndex &parent = QModelIndex()) override;
 
 private:
+    /*
+    QList<QList<QVariant>> storage;
+    QList<QVariant> vHeader;
+    QList<QVariant> hHeader;
+    */
     QVector<QVector<QVariant>> storage; //row<column<value>>
     QVector<QVariant> vHeader;
     QVector<QVariant> hHeader;
+
 };
 
 #endif // CSVTABLE_H
