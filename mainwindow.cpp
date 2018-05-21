@@ -105,11 +105,13 @@ MainWindow::MainWindow(QWidget *parent) :
         QString output = QFileDialog::getSaveFileName(this, tr("Select export path"), dataDir, QString(), nullptr,
                                                       QFileDialog::DontConfirmOverwrite);
         if(output.length() != 0){
-            QFile file(output + ".txt");
+            QFile file(output + ".DAT");
             file.open(QIODevice::WriteOnly);
             QTextStream stream(&file);
+            stream << "Time (unused)" << "\t" << "Temp. (unused)" << "\t" << "Magn.Field (Oe)"  << "\t" << "Moment (arb.units)" << "\r\n";
+            int i = 0;
             foreach (QPointF point, series->points()) {
-                stream << point.x() << "    " << point.y() << "\n";
+                stream << i++ << "\t" << 300.0 << "\t" <<point.x()*10 << "\t" << point.y() << "\r\n";
             }
             file.close();
         }
