@@ -67,6 +67,7 @@ private:
     QtCharts::QLineSeries* yZeroSer;
     void loadPar(QString name);
     QString loaded = "";
+    QList<QPointF> dots;
 
 private slots:
     void buildFileTable(QString);

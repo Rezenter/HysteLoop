@@ -118,6 +118,35 @@ MainWindow::MainWindow(QWidget *parent) :
     });
     QObject::connect(model, &QFileSystemModel::directoryLoaded, this, &MainWindow::buildFileTable);
     QObject::connect(refresh, &QFileSystemWatcher::directoryChanged, this, &MainWindow::load);
+    QObject::connect(ui->verticalFitSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [=](qreal val){
+        qDebug() << this->metaObject()->className() << "::verticalFitSpinBox::valueChanged" << val;
+        int quater = series->points().size()/4;
+        qreal shift = val * axisY->max()/ 200.0;
+        qreal max = std::numeric_limits<double>::min();
+        QVector<QPointF> points = dots.toVector();
+        for(int i = 0; i < points.size(); ++i){
+            qreal y = points.at(i).y();
+            if(i < quater || i >= quater*3){
+                y += shift;
+            }else{
+                y -= shift;
+            }
+            points.replace(i, QPointF(points.at(i).x(), y));
+            if(max < qAbs(y)){
+                max = qAbs(y);
+            }
+        }
+        series->blockSignals(true);
+        series->clear();
+        series->append(points.toList());
+        series->blockSignals(false);
+        series->pointsReplaced();
+        axisY->setRange(-max, max);
+    });
+    QObject::connect(ui->smoothSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, [=](qreal val){
+        qDebug() << this->metaObject()->className() << "::smoothSpinBox::valueChanged" << val;
+        //not implemented. separeted calculator needed.
+    });
     QObject::connect(ui->fileTable->selectionModel(), &QItemSelectionModel::selectionChanged, this, [=]{
         qDebug() << this->metaObject()->className() << "::selectionChanged";
         foreach (QModelIndex ind, ui->fileTable->selectionModel()->selectedRows()) { //overkill, 0 or 1 element only
@@ -134,7 +163,7 @@ MainWindow::MainWindow(QWidget *parent) :
             }
             QPair<int, QVector<QPair<double, QPair<double, double>>>> bgData = loader.getBackground();
             QPair<double, QPair<double, double>> point;
-            QList<QPointF> dots;
+            dots.clear();
             if(bgData.second.length() > 0){
                 if(bgData.first == -1){
                     //sens dialog
@@ -162,11 +191,11 @@ MainWindow::MainWindow(QWidget *parent) :
             qreal yMax = std::numeric_limits<double>::min();
             series->blockSignals(true);
             series->clear();
-            foreach (QPointF dot, dots) {
-                qreal y = dot.y() - h;
-                series->append(dot.x(), y);
-                if(qAbs(y) > yMax){
-                    yMax = qAbs(y);
+            for(i = 0; i < dots.size(); ++i){
+                dots.replace(i, QPointF(dots.at(i).x(), dots.at(i).y() - h));
+                series->append(dots.at(i));
+                if(qAbs(dots.at(i).y()) > yMax){
+                    yMax = qAbs(dots.at(i).y());
                 }
             }
             //axisX->setMax(xMax);
@@ -176,6 +205,8 @@ MainWindow::MainWindow(QWidget *parent) :
             series->blockSignals(false);
             series->setName(name);
             series->pointsReplaced();
+            ui->verticalFitSpinBox->valueChanged(ui->verticalFitSpinBox->value());
+            //ui->smoothSpinBox->valueChanged(ui->smoothSpinBox->value());
         }
     });
     QObject::connect(ui->datBox, &QCheckBox::toggled, this, [=](bool state){
@@ -419,6 +450,8 @@ void MainWindow::writeParam(QString name){
         par->setValue("amplitude", ui->ampEdit->text());
         par->setValue("rating", ui->ratingEdit->text());
         par->setValue("comment", ui->commentEdit->toPlainText());
+        par->setValue("shift", ui->verticalFitSpinBox->value());
+        par->setValue("smooth", ui->smoothSpinBox->value());
     par->endGroup();
     par->beginGroup("file1");
         par->setValue("filename", ui->file1Box->currentText());
@@ -446,6 +479,8 @@ void MainWindow::loadPar(QString name){
         ui->ampEdit->setText(par.value("amplitude", "Unknown").toString());
         ui->ratingEdit->setText(par.value("rating", "Unknown").toString());
         ui->commentEdit->setText(par.value("comment", "Unknown").toString());
+        ui->verticalFitSpinBox->setValue(par.value("shift", 0.0).toDouble());
+        ui->smoothSpinBox->setValue(par.value("smooth", 1).toInt());
     par.endGroup();
     par.beginGroup("file1");
         int index = ui->file1Box->findText(par.value("filename", "Unknown").toString());
