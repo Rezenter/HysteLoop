@@ -4,6 +4,16 @@
 
 /*
  *To-do:
+ *
+ * second file in export
+ * default export name
+ * table sorting
+ * multifile export
+ * multifile comparasion with common export
+ * smooth
+ * artifact correction
+ *
+ *
  *  base
  *      create common grid instead of finding zero
 
@@ -11,32 +21,17 @@
  *      calculate at loading
  *      move loading to thread
  *      check loading
- *          !!!! change vectors to lists !!!!
- *          change doubles to floats where possible, data wouldnt be lost due to low precision???wtf i meant
- *  save/load
+ *          !!!! change vectors to lists !!!! WTF i meant?
 
 
- *  params dialog
 
- *      fill fields when file selected/changed
- *      param file in correlation with SM`s programm
- *      save dialog size
  *  multiple loop comparaison
- *      moovable legend
  *      mouse position
  *          subclass smth in order to modify mousemoveevent
  *      loading progress
 
- *  smoothing count spinBox with only odd numbers//forgot why.
- *  export dialog
- *      export in correlation with SM`s programm
- *      export name including more data
- *  load data from param file to dialog
  *  calculate coercitivity, amplitude and offset
- *  errors dialog
 
- *  smooth
- *  mb same sample filter?
  *
 */
 MainWindow::MainWindow(QWidget *parent) :
