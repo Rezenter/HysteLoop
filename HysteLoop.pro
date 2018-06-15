@@ -15,13 +15,9 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += main.cpp\
         mainwindow.cpp \
-    fileloader.cpp \
-    extfsm.cpp \
-    csvtable.cpp
+    calculator.cpp
 
 HEADERS  += mainwindow.h \
-    fileloader.h \
-    extfsm.h \
-    csvtable.h
+    calculator.h
 
 FORMS    += mainwindow.ui

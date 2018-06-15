@@ -2,27 +2,26 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
-#include <QRegExpValidator>
 #include <QLineSeries>
 #include <QChartView>
 #include <QValueAxis>
-#include <QLineSeries>
 #include <QSettings>
 #include <QFileSystemModel>
-#include "extfsm.h"
 #include <QItemSelection>
-#include "fileloader.h"
 #include <QHash>
 #include <QList>
 #include <QCoreApplication>
 #include <QFileDialog>
-#include <QDebug>
 #include <QFileSystemWatcher>
 #include <QDateTime>
 #include <QDialog>
-#include <QSortFilterProxyModel>
 #include <QMouseEvent>
 #include <QMessageBox>
+#include <QThread>
+
+#include "calculator.h"
+
+#include <QDebug>
 
 namespace Ui {
 class MainWindow;
@@ -36,13 +35,17 @@ public:
     explicit MainWindow(QWidget* parent = 0);
     ~MainWindow();
 
+signals:
+    void setLoader(const QString loaderPath, const QString filename);
+    void setSmooth(const int count, const int file);
+    void update();
+
 private:
     Ui::MainWindow* ui;
     void loadSettings();
     void saveSettings();
     QtCharts::QChartView* chartView;
     QtCharts::QChart* chart;
-    QtCharts::QLineSeries* series;
     QtCharts::QValueAxis* axisX;
     QtCharts::QValueAxis* axisY;
     QString path = QCoreApplication::applicationDirPath();
@@ -50,7 +53,6 @@ private:
     QTextStream* stream;
     QSettings* settings;
     QFileSystemModel* model = new QFileSystemModel(this);
-    ExtFSM* table = new ExtFSM(this);
     QString drive;
     QModelIndex currentSelection;
     QString dataDir;
@@ -60,14 +62,14 @@ private:
     QDialog* param = new QDialog(this);
     void writeParam(QString);
     QStringList elements;
-    int error = 0;
     QStringList dats;
-    QSortFilterProxyModel proxy;
     QtCharts::QLineSeries* xZeroSer;
     QtCharts::QLineSeries* yZeroSer;
     void loadPar(QString name);
     QString loaded = "";
     QList<QPointF> dots;
+    QHash<QString, QPair<QThread*, Calculator*>> calculators;
+    int loadingSmooth = 5; //from par
 
 private slots:
     void buildFileTable(QString);
