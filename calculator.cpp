@@ -6,6 +6,8 @@
 #include "QDebug"
 
 //store constants in settings
+int Calculator::type = 0;
+int Calculator::files = 0;
 
 Calculator::Calculator(QObject *parent) : QObject(parent){
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__;
@@ -66,8 +68,7 @@ void Calculator::load(){
         }
         dataFile.close();
         emit dataPointers(output[0], output[1], names);
-        //debug
-        update(0);
+        //wait for update() signal
     }
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
 }
@@ -119,13 +120,11 @@ void Calculator::fillTable(const int file, QTextStream *stream){
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
 }
 
-void Calculator::setLoadingSmooth(const int file, const int count){ //!must be stored in settings.ini and be passed before loading
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file << count;
-    if(file == 0 || file == 1){
-        if(count > 0 && loadingSmooth[file] != count){
-            loadingSmooth[file] = count;
-            load();
-        }
+void Calculator::setLoadingSmooth(const int count){
+    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << count;
+    if(count > 0 && loadingSmooth != count){
+        loadingSmooth = count;
+        load();
     }
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
 }
@@ -135,16 +134,16 @@ void Calculator::shuffle(const int file){
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file;
     if(tableFilled[file]){
         int count = 0;
-        int start = qFloor(loadingSmooth[file]);
+        int start = qFloor(loadingSmooth);
         int maxIndex = start;
         qreal average = 0.0;
-        for(int i = 0; i < loadingSmooth[file]; ++i){
+        for(int i = 0; i < loadingSmooth; ++i){
             average += storage[file].at(i)[0];
         }
         qreal maxValue = average;
         while(count < storage[file].size()){
             average -= storage[file].at(count)[0];
-            int index = count + loadingSmooth[file];
+            int index = count + loadingSmooth;
             if(index >= storage[file].size()){
                 index -= storage[file].size();
             }
@@ -168,17 +167,27 @@ void Calculator::shuffle(const int file){
 }
 
 
-void Calculator::setGrainMult(const int file, const qreal mult){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file << mult;
-    if(file == 0 || file == 1){
-        if(mult != grainMult[file]){
-            grainMult[file] = mult;
-            if(tableFilled[file]){
-                fillGrid(file);
-            }else{
-                qDebug() << "wtf?";
-            }
+void Calculator::setGrain(const qreal val){
+    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << val;
+    if(val != grain){
+        grain = val;
+        if(tableFilled[0]){
+            fillGrid(0);
         }
+        if(tableFilled[1]){
+            fillGrid(1);
+        }
+        update();
+    }
+    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+}
+
+void Calculator::setVerticalOffset(const int file, const qreal val){
+    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file << val;
+    if(verticalOffset[file] != val){
+        verticalOffset[file] = val;
+        fillGrid(file);
+        update();
     }
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
 }
@@ -187,44 +196,38 @@ void Calculator::fillGrid(const int file){
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file;
     if(shuffled[file]){
         xRange = QPointF(std::numeric_limits<double>::max(), std::numeric_limits<double>::min());
-        yRange = QPointF(std::numeric_limits<double>::max(), std::numeric_limits<double>::min());
-        qreal currGrain = grain[file]*grainMult[file];
+        yRange[file] = yRange[file];
+        qreal offset = verticalOffset[file]/2.0;
         gridFall[file].clear();
-        gridFall[file].resize(qFloor((600.0 + currGrain - 0.1)/currGrain));
+        gridFall[file].resize(qFloor((600.0 + grain - 0.1)/grain));
         gridRise[file].clear();
-        gridRise[file].resize(qFloor((600.0 + currGrain - 0.1)/currGrain));
+        gridRise[file].resize(qFloor((600.0 + grain - 0.1)/grain));
         int count = 0;
         foreach (qreal* row, storage[file]) {
-            //storage intact
-            int gridIndex = qFloor((row[0] + 300.0 + currGrain/2.0)/currGrain);
-            qreal x = gridIndex*grain[file]*grainMult[file] - 300.0;
+            int gridIndex = qFloor((row[0] + 300.0 + grain/2.0)/grain);
+            qreal x = gridIndex*grain - 300.0;
             qreal y;
             qreal z;
             if(count < qFloor(storage[file].size()/2)){
                 if(gridRise[file].at(gridIndex).second.x() == 0.0 && gridRise[file].at(gridIndex).second.y() == 0.0){
-                    y = row[1];
+                    y = row[1] - offset;
                     z = row[2];
                 }else{
-                    y = (row[1] + gridRise[file].at(gridIndex).second.x())/2.0;
+                    y = (row[1] - offset + gridRise[file].at(gridIndex).second.x())/2.0;
                     z = (row[2] + gridRise[file].at(gridIndex).second.y())/2.0;
                 }
                 gridRise[file].replace(gridIndex, QPair<qreal, QPointF>(x, QPointF(y, z)));
             }else{
                 if(gridFall[file].at(gridIndex).second.x() == 0.0 && gridFall[file].at(gridIndex).second.y() == 0.0){
-                    y = row[1];
+                    y = row[1] + offset;
                     z = row[2];
                 }else{
-                    y = (row[1] + gridFall[file].at(gridIndex).second.x())/2.0;
+                    y = (row[1] + offset + gridFall[file].at(gridIndex).second.x())/2.0;
                     z = (row[2] + gridFall[file].at(gridIndex).second.y())/2.0;
                 }
                 gridFall[file].replace(gridIndex, QPair<qreal, QPointF>(x, QPointF(y, z)));
             }
             count ++;
-        }
-        for(int i = 0; i < gridFall[file].size(); ++i){
-            if(gridFall[file].at(i).first == 0 && ){
-                //remove all zero cells
-            }
         }
         loaded[file] = true;
     }else{
@@ -233,54 +236,94 @@ void Calculator::fillGrid(const int file){
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
 }
 
-void Calculator::update(const int type){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << type;
-    //move y
-    xRange = QPointF(std::numeric_limits<double>::max(), std::numeric_limits<double>::min());
-    yRange = QPointF(std::numeric_limits<double>::max(), std::numeric_limits<double>::min());
+void Calculator::update(const int signal, const int newFiles){
+    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << signal << newFiles;
+    type = signal;
+    files = newFiles;
     bool ok = true;
+    firstRange = QPointF();
+    exported[0] = false;
+    exported[1] = false;
+    mutex.lock();
     switch (type) {
     case 0: //raw loops
-        for(int file = 0; file < 2; ++file){
-            if(loaded[file]){
-                {
-                    mutex.lock();
-                    output[file]->clear();
-                    for(int i = 0; i < gridFall[file].size(); ++i){
-                        qDebug() << i;
-                        output[file]->append(QPointF(gridFall[file].at(i).first, gridFall[file].at(i).second.x()));
-                        checkRange(output[file]->last());
-                    }
-                    for(int i = 0; i < gridRise[file].size(); ++i){
-                        qDebug() << i;
-                        output[file]->append(QPointF(gridRise[file].at(i).first, gridRise[file].at(i).second.x()));
-                        checkRange(output[file]->last());
-                    }
-                    mutex.unlock();
-                }
-            }
+        if(files == 0 || files == 2){
+            rawOutput(0);
         }
+        if(files == 1 || files == 2){
+            rawOutput(1);
+        }
+        break;
+    case 1://zero
+
+        break;
+    case 2://normalized
         break;
     default:
         ok = false;
-        qDebug() << "wtf:: type == " << type;
+        qDebug() << "wtf:: type == " << signal;
         break;
     }
+    for(int file = 0; file < 2; ++file){
+        if(exported[file]){
+            qreal offset = (yRange[file].x() + yRange[file].y())/2.0;
+            QPointF offsetP(offset, offset);
+            for(int i = 0; i < output[file]->size(); ++i){
+                output[file]->replace(i, output[file]->at(i) - offsetP);
+            }
+            yRange[file] -= offsetP;
+        }
+    }
+    mutex.unlock();
     if(ok){
-        emit range(xRange, yRange);
+        if(exported[0] && exported[1]){
+            emit range(xRange, QPointF(qMin(yRange[0].x(), yRange[1].x()), qMax(yRange[0].y(), yRange[1].y())));
+        }else if(exported[0]){
+            emit range(xRange, yRange[0]);
+        }else{
+            emit range(xRange, yRange[1]);
+        }
+        for(int i = 0; i < 2; ++i){
+            if(exported[i]){
+                emit ready(i);
+            }
+        }
     }
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
 }
 
-void Calculator::checkRange(QPointF point){
+void Calculator::checkRange(QPointF point, const int file){
     if(point.x() < xRange.x()){
         xRange.setX(point.x());
     }else if(point.x() > xRange.y()){
         xRange.setY(point.x());
     }
-    if(point.y() < yRange.x()){
-        yRange.setX(point.y());
-    }else if(point.y() > yRange.y()){
-        yRange.setY(point.y());
+    if(point.y() < yRange[file].x()){
+        yRange[file].setX(point.y());
+    }else if(point.y() > yRange[file].y()){
+        yRange[file].setY(point.y());
     }
+}
+
+void Calculator::rawOutput(const int file){
+    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file;
+    if(loaded[file]){
+        xRange = QPointF(std::numeric_limits<double>::max(), std::numeric_limits<double>::min());
+        yRange[file] = xRange;
+        exported[file] = true;
+        output[file]->clear();
+        for(int i = gridFall[file].size() - 1; i >= 0 ; --i){
+            if(!(gridFall[file].at(i).first == 0 && gridFall[file].at(i).second.x() == 0 && gridFall[file].at(i).second.y() == 0)){
+                output[file]->append(QPointF(gridFall[file].at(i).first, gridFall[file].at(i).second.x()));
+                checkRange(output[file]->last(), file);
+            }
+        }
+        for(int i = 0; i < gridRise[file].size(); ++i){
+            if(!(gridRise[file].at(i).first == 0 && gridRise[file].at(i).second.x() == 0 && gridRise[file].at(i).second.y() == 0)){
+                output[file]->append(QPointF(gridRise[file].at(i).first, gridRise[file].at(i).second.x()));
+                checkRange(output[file]->last(), file);
+            }
+        }
+    }
+    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
 }

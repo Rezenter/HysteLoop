@@ -88,13 +88,16 @@ MainWindow::MainWindow(QWidget *parent) :
     labels.append("rating");
     labels.append("date");
     labels.append("comment");
-    labels.append("loaded");
     ui->fileTable->setColumnCount(labels.size());
     ui->fileTable->setHorizontalHeaderLabels(labels);
-    ui->fileTable->setColumnHidden(labels.size() - 1, true);
     ui->fileTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui->fileTable->setSelectionMode(QAbstractItemView::SingleSelection);
     ui->fileTable->horizontalHeader()->setStretchLastSection(true);
+    ui->signalType->setId(ui->rawSignalButton, 0);
+    ui->signalType->setId(ui->zeroSignalButton, 1);
+    ui->signalType->setId(ui->normSignalButton, 2);
+    ui->fileGroup->setId(ui->edgeButton, 0);
+    ui->fileGroup->setId(ui->preEdgeButton, 1);
     QObject::connect(ui->folderButton, &QPushButton::pressed, this, [=]{
         qDebug() << this->metaObject()->className() <<  "::folderButton::pressed";
         QString dir = QFileDialog::getExistingDirectory(this, tr("Select data directory"),
@@ -119,86 +122,206 @@ MainWindow::MainWindow(QWidget *parent) :
             int i = 0;
 
             //fix!___________________________________________________________________________________________debug only
-
+            /*
             foreach (QPointF point, dynamic_cast<QtCharts::QLineSeries *>(chart->series().at(0))->points()) {
                 stream << i++ << "\t" << 300.0 << "\t" <<point.x()*10 << "\t" << point.y() << "\r\n";
             }
-
+            */
             file.close();
         }
         qDebug() << this->metaObject()->className() << "::exportButton::pressed::exit";
     });
     QObject::connect(model, &QFileSystemModel::directoryLoaded, this, &MainWindow::buildFileTable);
     QObject::connect(refresh, &QFileSystemWatcher::directoryChanged, this, &MainWindow::load);
-    QObject::connect(ui->verticalFitSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [=](qreal val){
+    QObject::connect(ui->verticalFit1SpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [=](qreal val){
         qDebug() << this->metaObject()->className() << "::verticalFitSpinBox::valueChanged" << val;
-        //not implemented yet
+        Calc* curr = current();
+        if(curr != nullptr){
+            curr->calc->setVerticalOffset(0, val);
+            curr->verticalFit[0] = val;
+        }else{
+            qDebug() << "wtf";
+        }
         qDebug() << this->metaObject()->className() << "::verticalFitSpinBox::valueChanged::exit";
     });
-    QObject::connect(ui->smoothSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, [=](qreal val){
-        qDebug() << this->metaObject()->className() << "::smoothSpinBox::valueChanged" << val;
-        //not implemented. separeted calculator needed.
-        qDebug() << this->metaObject()->className() << "::smoothSpinBox::valueChanged::exit";
+    QObject::connect(ui->verticalFit2SpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [=](qreal val){
+        qDebug() << this->metaObject()->className() << "::verticalFitSpinBox::valueChanged" << val;
+        Calc* curr = current();
+        if(curr != nullptr){
+            curr->calc->setVerticalOffset(1, val);
+            curr->verticalFit[1] = val;
+        }else{
+            qDebug() << "wtf";
+        }
+        qDebug() << this->metaObject()->className() << "::verticalFitSpinBox::valueChanged::exit";
+    });
+    QObject::connect(ui->smoothDoubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [=](qreal val){
+        qDebug() << this->metaObject()->className() << "::smoothDoubleSpinBox::valueChanged" << val;
+        Calc* curr = current();
+        if(curr != nullptr){
+            curr->calc->setGrain(val);
+            curr->grain = val;
+        }else{
+            qDebug() << "wtf";
+        }
+        qDebug() << this->metaObject()->className() << "::smoothDoubleSpinBox::valueChanged::exit";
+    });
+    QObject::connect(ui->loadingSmoothSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, [=](int val){
+        qDebug() << this->metaObject()->className() << "::smoothDoubleSpinBox::valueChanged" << val;
+        Calc* curr = current();
+        if(curr != nullptr){
+            curr->calc->setLoadingSmooth(val);
+            curr->loadingSmooth = val;
+        }else{
+            qDebug() << "wtf";
+        }
+        qDebug() << this->metaObject()->className() << "::smoothDoubleSpinBox::valueChanged::exit";
+    });
+    QObject::connect(ui->signalType, QOverload<int, bool>::of(&QButtonGroup::buttonToggled), [=](int id, bool state){
+        qDebug() << this->metaObject()->className() << "::signalType::buttonToggled" << id << state;
+        if(state){
+            Calc* curr = current();
+            if(curr != nullptr){
+                curr->calc->update(id, curr->files);
+                curr->signal = id;
+            }else{
+                qDebug() << "wtf";
+            }
+        }
+    });
+    QObject::connect(ui->edgeButton, &QRadioButton::toggled, this, [=](bool state){
+        qDebug() << this->metaObject()->className() << "::edgeButton::buttonToggled" << state;
+        if(!state && !ui->preEdgeButton->isChecked()){
+            ui->edgeButton->setChecked(true);
+        }else{
+            Calc* curr = current();
+            qDebug() << curr->series[1]->isVisible();
+            if(curr != nullptr){
+                if(state){
+                    if(ui->preEdgeButton->isChecked()){
+                        curr->files = 2;
+                    }else{
+                        curr->files = 0;
+                    }
+                }else{
+                    curr->files = 1;
+                    qDebug() << curr->series[1]->isVisible();
+                    curr->series[0]->setVisible(false);
+                    qDebug() << curr->series[1]->isVisible();
+                }
+                qDebug() << curr->series[1]->isVisible();
+                curr->calc->update(curr->signal, curr->files);
+                qDebug() << curr->series[1]->isVisible();
+            }else{
+                qDebug() << "wtf";
+            }
+        }
+        qDebug() << this->metaObject()->className() << "::edgeButton::buttonToggled::exit";
+    });
+    QObject::connect(ui->preEdgeButton, &QRadioButton::toggled, this, [=](bool state){
+        qDebug() << this->metaObject()->className() << "::preEdgeButton::buttonToggled" << state;
+        if(!state && !ui->edgeButton->isChecked()){
+            ui->preEdgeButton->setChecked(true);
+        }else{
+            Calc* curr = current();
+            if(curr != nullptr){
+                if(state){
+                    if(ui->edgeButton->isChecked()){
+                        curr->files = 2;
+                    }else{
+                        curr->files = 1;
+                    }
+                }else{
+                    curr->files = 0;
+                    curr->series[1]->setVisible(false);
+                }
+                curr->calc->update(curr->signal, curr->files);
+            }else{
+                qDebug() << "wtf";
+            }
+        }
+        qDebug() << this->metaObject()->className() << "::preEdgeButton::buttonToggled::exit";
     });
     QObject::connect(ui->fileTable->selectionModel(), &QItemSelectionModel::selectionChanged, this, [=]{
         qDebug() << this->metaObject()->className() << "::selectionChanged";
-        QElapsedTimer timer;
-        //timer.start();
-        axisX->setMin(0.0);
-        axisX->setMax(0.0);
-        axisY->setMin(0.0);
-        axisY->setMax(0.0);
-        chart->removeAllSeries();
-        foreach (QModelIndex ind, ui->fileTable->selectionModel()->selectedRows()) { //overkill, 0 or 1 element only
-            if(ui->fileTable->item(ind.row(), ui->fileTable->columnCount() - 1)->text() == "0"){
+        foreach(Calc* calc, calculators){
+            calc->series[0]->setVisible(false);
+            calc->series[1]->setVisible(false);
+        }
+        QStringList names;
+        if(ui->fileTable->selectionModel()->selectedRows().size() == 0){
+            //make gui inactive
+        }else{
+            //activate gui
+            foreach (QModelIndex ind, ui->fileTable->selectionModel()->selectedRows()) {
                 QString name = ui->fileTable->item(ind.row(), 0)->text();
-                QThread* currThread = new QThread();
-                Calculator* curr = new Calculator();
-                calculators.insert(name, QPair<QThread*, Calculator*>(currThread, curr));
-                //curr->setLoadingSmooth(loadingSmooth);
-                curr->moveToThread(currThread);
-
-                QObject::connect(curr, SIGNAL(dead()), currThread, SLOT(quit()), Qt::QueuedConnection);
-                QObject::connect(currThread, SIGNAL(finished()), curr, SLOT(deleteLater()), Qt::QueuedConnection);
-                QObject::connect(curr, SIGNAL(dead()), currThread, SLOT(deleteLater()), Qt::QueuedConnection);
-
-                //QObject::connect(this, &MainWindow::setLoader, curr, &Calculator::setLoader, Qt::QueuedConnection);
-                QObject::connect(curr, &Calculator::dataPointers, this, [=](QVector<QPointF>* edge, QVector<QPointF>* preEdge, QStringList names){
-                    qDebug() << this->metaObject()->className() << "::seriesPointers";
-                    curr->mutex.lock();
-                    for(int i = 0; i < names.size(); ++i){
-                        QtCharts::QLineSeries* tmp = new QtCharts::QLineSeries(chart);
-                        tmp->setName(names.at(i));
-                        tmp->setUseOpenGL(true);
-                        chart->addSeries(tmp);
-                        tmp->attachAxis(axisX);
-                        tmp->attachAxis(axisY);
-                        if(i == 0){
-                            tmp->append(edge->toList());
-                        }else if(i == 1){
-                            tmp->append(preEdge->toList());
-                        }
+                names.append(name);
+                if(!calculators.contains(name)){
+                    Calc* calc = new Calc;
+                    calculators.insert(name, calc);
+                    calc->calc = new Calculator();
+                    calc->thread = new QThread();
+                    calc->calc->setLoadingSmooth(loadingSmooth);
+                    calc->calc->moveToThread(calc->thread);
+                    calc->name = name;
+                    calc->xRange = QPointF(-1.0, 1.0);
+                    calc->yRange = QPointF(-1.0, 1.0);
+                    for(int i = 0; i < 2; ++i){
+                        calc->series[i] = new QtCharts::QLineSeries(chart);
+                        calc->series[i]->setUseOpenGL(true);
+                        chart->addSeries(calc->series[i]);
+                        calc->series[i]->attachAxis(axisX);
+                        calc->series[i]->attachAxis(axisY);
                     }
-                    curr->mutex.unlock();
-                    qDebug() << this->metaObject()->className() << "::seriesPointers::exit";
-                }, Qt::QueuedConnection);
+                    QObject::connect(calc->calc, SIGNAL(dead()), calc->thread, SLOT(quit()), Qt::QueuedConnection);
+                    QObject::connect(calc->thread, SIGNAL(finished()), calc->calc, SLOT(deleteLater()), Qt::QueuedConnection);
+                    QObject::connect(calc->calc, SIGNAL(dead()), calc->thread, SLOT(deleteLater()), Qt::QueuedConnection);
 
-                QObject::connect(curr, &Calculator::range, this, [=](QPointF xRange, QPointF yRange){
-                    qDebug() << this->metaObject()->className() << "::range" << xRange << yRange;
-                    axisX->setMin(qMin(axisX->min(), xRange.x()*1.01));
-                    axisX->setMax(qMax(axisX->max(), xRange.y()*1.01));
-                    axisY->setMin(qMin(axisY->min(), yRange.x()*1.01));
-                    axisY->setMax(qMax(axisY->max(), yRange.y()*1.01));
-                    qDebug() << this->metaObject()->className() << "::range::exit";
-                }, Qt::QueuedConnection);
-
-
-                curr->setLoader(dataDir, name);
-
-                if(name.endsWith(".PAR")){
-                    loadPar(name);
+                    QObject::connect(calc->calc, &Calculator::dataPointers, this,
+                                     [=](QVector<QPointF>* first, QVector<QPointF>* second, QStringList names){
+                        qDebug() << this->metaObject()->className() << "::dataPointers";
+                        calc->calc->mutex.lock();
+                        for(int i = 0; i < names.size(); ++i){
+                            calc->series[i]->setName(names.at(i));
+                            if(i == 0){
+                                calc->data[i] = first;
+                            }else if(i == 1){
+                                calc->data[i] = second;
+                            }
+                        }
+                        calc->calc->mutex.unlock();
+                        calc->calc->update(0); //must be a function call, not a signal
+                        qDebug() << this->metaObject()->className() << "::dataPointers::exit";
+                    }, Qt::QueuedConnection);
+                    QObject::connect(calc->calc, &Calculator::range, this, [=](QPointF xRange, QPointF yRange){
+                        qDebug() << this->metaObject()->className() << "::range" << xRange << yRange;
+                        calc->xRange = xRange;
+                        calc->yRange = yRange;
+                        resizeChart();
+                        qDebug() << this->metaObject()->className() << "::range::exit";
+                    }, Qt::QueuedConnection);
+                    QObject::connect(calc->calc, &Calculator::ready, this, [=](int file){
+                        qDebug() << this->metaObject()->className() << "::ready" << file;
+                        {
+                            const QSignalBlocker block(calc->series[file]);
+                            Q_UNUSED(block);
+                            calc->series[file]->clear();
+                            calc->series[file]->append(calc->data[file]->toList());
+                        }
+                        calc->series[file]->pointsReplaced();
+                        calc->series[file]->setVisible(true);
+                        qDebug() << this->metaObject()->className() << "::ready::exit";
+                    });
+                    calc->calc->setLoader(dataDir, name);
+                    if(name.endsWith(".PAR")){
+                        loadPar(name);
+                    }
+                }else{
+                    calculators.value(name)->calc->update();//to lazy to create a mapper
                 }
+
             }
+            resizeChart();
         }
         qDebug() << this->metaObject()->className() << "::selectionChanged::exit";
     });
@@ -249,6 +372,7 @@ MainWindow::~MainWindow()
     delete model;
     //refresh?
     //kill all threads
+    //clear calculators
     chart->removeAllSeries();
     delete chart;
     delete chartView;
@@ -285,6 +409,8 @@ void MainWindow::loadSettings(){
             elements.append(settings->value("element", "unknown").toString());
         }
         settings->endArray();
+        loadingSmooth = settings->value("loadingSmooth", 5).toInt();
+        grain = settings->value("grain", 0.5).toDouble();
     settings->endGroup();
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
 }
@@ -314,6 +440,8 @@ void MainWindow::saveSettings(){
                 settings->setValue("element", elements.at(i));
             }
         settings->endArray();
+        settings->setValue("loadingSmooth", loadingSmooth);
+        settings->setValue("grain", grain);
     settings->endGroup();
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
 }
@@ -346,7 +474,6 @@ void MainWindow::buildFileTable(QString d){
                 ui->fileTable->setItem(tableRow, 0, new QTableWidgetItem(model->fileName(childIndex)));
                 ui->fileTable->setItem(tableRow, 5, new QTableWidgetItem(model->fileInfo(childIndex).lastModified().
                                                                           toString("dd.MM.yyyy   HH:mm")));
-                ui->fileTable->setItem(tableRow, ui->fileTable->columnCount() - 1, new QTableWidgetItem("0"));
                 tableRow++;
             }
         }else if(model->fileName(childIndex).endsWith(".PAR", Qt::CaseInsensitive)){
@@ -357,7 +484,6 @@ void MainWindow::buildFileTable(QString d){
                 ui->fileTable->setItem(tableRow, 0, new QTableWidgetItem(model->fileName(childIndex)));
                 ui->fileTable->setItem(tableRow, 5, new QTableWidgetItem(model->fileInfo(childIndex).lastModified().
                                                                           toString("dd.MM.yyyy   HH:mm")));
-                ui->fileTable->setItem(tableRow, ui->fileTable->columnCount() - 1, new QTableWidgetItem("0"));
                 par.beginGroup("common");
                     tmp = par.value("sampleName", "unknown").toString();
                     if(tmp == "unknown"){
@@ -474,8 +600,8 @@ void MainWindow::writeParam(QString name){
         par.setValue("amplitude", ui->ampEdit->text());
         par.setValue("rating", ui->ratingEdit->text());
         par.setValue("comment", ui->commentEdit->toPlainText());
-        par.setValue("shift", ui->verticalFitSpinBox->value());
-        par.setValue("smooth", ui->smoothSpinBox->value());
+        //par.setValue("shift", ui->verticalFitSpinBox->value());
+        //par.setValue("smooth", ui->smoothSpinBox->value());
         //patch for SMs programm
         par.setValue("corrDerivative", 0);
         par.setValue("area", 1);
@@ -514,8 +640,8 @@ void MainWindow::loadPar(QString name){
         ui->ampEdit->setText(par.value("amplitude", "Unknown").toString());
         ui->ratingEdit->setText(par.value("rating", "Unknown").toString());
         ui->commentEdit->setText(par.value("comment", "Unknown").toString());
-        ui->verticalFitSpinBox->setValue(par.value("shift", 0.0).toDouble());
-        ui->smoothSpinBox->setValue(par.value("smooth", 1).toInt());
+        //ui->verticalFitSpinBox->setValue(par.value("shift", 0.0).toDouble());
+        //ui->smoothSpinBox->setValue(par.value("smooth", 1).toInt());
     par.endGroup();
     par.beginGroup("file1");
         int index = ui->file1Box->findText(par.value("filename", "Unknown").toString());
@@ -545,4 +671,40 @@ void MainWindow::loadPar(QString name){
     par.endGroup();
     loaded = name;
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+}
+
+void MainWindow::resizeChart(){
+    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__;
+    QPointF xRange = QPointF(0.0, 0.0);
+    QPointF yRange = QPointF(0.0, 0.0);
+    foreach(Calc* calc, calculators){
+        if(calc->series[0]->isVisible()){
+            xRange = QPointF(qMin(xRange.x(), calc->xRange.x()), qMax(xRange.y(), calc->xRange.y()));
+            yRange = QPointF(qMin(yRange.x(), calc->yRange.x()), qMax(yRange.y(), calc->yRange.y()));
+        }
+    }
+    axisX->setRange(xRange.x(), xRange.y());
+    axisY->setRange(yRange.x(), yRange.y());
+    xZeroSer->clear();
+    xZeroSer->append(xRange.x(), 0.0);
+    xZeroSer->append(xRange.y(), 0.0);
+    yZeroSer->clear();
+    yZeroSer->append(0.0, yRange.x());
+    yZeroSer->append(0.0, yRange.y());
+    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+}
+
+
+MainWindow::Calc *MainWindow::current(){
+    if(ui->fileTable->selectionModel()->selectedRows().size() > 0){
+        QString name = ui->fileTable->item(ui->fileTable->selectionModel()->selectedRows().at(0).row(), 0)->text();
+        if(calculators.contains(name)){
+            return calculators.value(name);
+        }else{
+            qDebug() << "wtf, gui error 2";
+        }
+    }else{
+        qDebug() << "wtf, gui error 1";
+    }
+    return nullptr;
 }

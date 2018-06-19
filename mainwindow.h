@@ -36,14 +36,30 @@ public:
     ~MainWindow();
 
 signals:
+    void setGrain(const qreal val);
     void setLoader(const QString loaderPath, const QString filename);
     void setSmooth(const int count, const int file);
-    void update();
+    void update(const int signal, const int files);
 
 private:
     Ui::MainWindow* ui;
+    struct Calc{
+        QString name;
+        QThread* thread;
+        Calculator* calc;
+        QPointF xRange;
+        QPointF yRange;
+        QtCharts::QLineSeries* series[2];
+        QVector<QPointF>* data[2];
+        qreal grain;
+        int signal;
+        int files;
+        qreal verticalFit[2];
+        int loadingSmooth;
+    };
     void loadSettings();
     void saveSettings();
+    void resizeChart();
     QtCharts::QChartView* chartView;
     QtCharts::QChart* chart;
     QtCharts::QValueAxis* axisX;
@@ -68,8 +84,10 @@ private:
     void loadPar(QString name);
     QString loaded = "";
     QList<QPointF> dots;
-    QHash<QString, QPair<QThread*, Calculator*>> calculators;
-    int loadingSmooth = 5; //from par
+    int loadingSmooth = 5;
+    QHash<QString, Calc*> calculators;
+    qreal grain = 0.5;
+    Calc* current();
 
 private slots:
     void buildFileTable(QString);
