@@ -38,8 +38,8 @@ public:
 signals:
     void setGrain(const qreal val);
     void setLoader(const QString loaderPath, const QString filename);
-    void setSmooth(const int count, const int file);
-    void update(const int signal, const int files);
+    void setLoadingSmooth(const int count);
+    void update(const int signal, const int files, const bool zeroNorm);
 
 private:
     Ui::MainWindow* ui;
@@ -56,6 +56,8 @@ private:
         int files;
         qreal verticalFit[2];
         int loadingSmooth;
+        bool zeroNorm;
+        bool visability[2];
     };
     void loadSettings();
     void saveSettings();
@@ -88,6 +90,9 @@ private:
     QHash<QString, Calc*> calculators;
     qreal grain = 0.5;
     Calc* current();
+    void emitUpdate(const Calc* curr);
+    void emitLoadingSmooth(const Calc* curr);
+    void emitSetGrain(const Calc* curr);
 
 private slots:
     void buildFileTable(QString);

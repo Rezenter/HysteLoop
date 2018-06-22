@@ -25,7 +25,7 @@ signals:
 public slots:
     void setLoader(const QString loaderPath, const QString filename);
     void setLoadingSmooth(const int count);
-    void update(const int signal = type, const int fileSelection = files);
+    void update(const int signal = type, const int fileSelection = files, const bool newZeroNorm = zeroNorm);
     void setGrain(const qreal val);
     void setVerticalOffset(const int file, const qreal val);
 
@@ -48,11 +48,12 @@ private:
     QPointF yRange[2];
     static int type;
     static int files; //0 = only first, 1 = only second ,2 = both
+    static bool zeroNorm;
     qreal grain = 0.5; //store in settings
     bool shuffled[2] = {false, false};
     QVector<qreal*> storage[2]; //row<value[column]>
     qreal verticalOffset[2] = {0.0, 0.0};
-    void rawOutput(const int file);
+    void fillOutput(const int file);
     bool exported[2] = {false, false};
     QPointF firstRange;
 };

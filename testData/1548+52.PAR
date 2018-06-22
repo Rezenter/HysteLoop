@@ -1,0 +1,20 @@
+[common]
+sample=N7a
+angle=69.6
+amplitude=
+rating=
+comment=
+
+[file1]
+filename=154812.csv
+element=Co
+energy=
+rating=
+sensetivity=50
+
+[file2]
+filename=155223.csv
+element=Fe PreEdge
+energy=
+rating=
+sensetivity=50

@@ -1,0 +1,20 @@
+[common]
+sample=N7a
+angle=0
+amplitude=
+rating=
+comment=
+
+[file1]
+filename=140905.csv
+element=Fe
+energy=
+rating=
+sensetivity=10
+
+[file2]
+filename=141050.csv
+element=Fe PreEdge
+energy=
+rating=
+sensetivity=5
