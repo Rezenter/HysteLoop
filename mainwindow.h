@@ -40,6 +40,8 @@ signals:
     void setLoader(const QString loaderPath, const QString filename);
     void setLoadingSmooth(const int count);
     void update(const int signal, const int files, const bool zeroNorm);
+    void setCriticalDer(const qreal val);
+    void updateSplit(const int file, const int rise, const int index);
 
 private:
     Ui::MainWindow* ui;
@@ -49,15 +51,16 @@ private:
         Calculator* calc;
         QPointF xRange;
         QPointF yRange;
-        QtCharts::QLineSeries* series[2];
-        QVector<QPointF>* data[2];
+        std::array<QtCharts::QLineSeries*, 2> series;
+        std::array<QVector<QPointF>*, 2> data;
         qreal grain;
         int signal;
         int files;
-        qreal verticalFit[2];
+        std::array<qreal, 2> verticalFit;
         int loadingSmooth;
         bool zeroNorm;
-        bool visability[2];
+        std::array<bool, 2> visability;
+        qreal criticalDer;
     };
     void loadSettings();
     void saveSettings();
@@ -83,6 +86,7 @@ private:
     QStringList dats;
     QtCharts::QLineSeries* xZeroSer;
     QtCharts::QLineSeries* yZeroSer;
+    QtCharts::QLineSeries* splitSeries;
     void loadPar(QString name);
     QString loaded = "";
     QList<QPointF> dots;
@@ -91,8 +95,7 @@ private:
     qreal grain = 0.5;
     Calc* current();
     void emitUpdate(const Calc* curr);
-    void emitLoadingSmooth(const Calc* curr);
-    void emitSetGrain(const Calc* curr);
+    qreal criticalDer = 0.015;
 
 private slots:
     void buildFileTable(QString);

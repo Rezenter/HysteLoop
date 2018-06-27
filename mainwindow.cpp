@@ -5,6 +5,8 @@
 /*
  *To-do:
  *
+ *crash @ folder change while any file is selected
+ *
  * reload par after alteration
  * save visability at selectionChanged call
  *
@@ -67,6 +69,12 @@ MainWindow::MainWindow(QWidget *parent) :
     yZeroSer->attachAxis(axisX);
     yZeroSer->attachAxis(axisY);
     yZeroSer->setName("(x, 0)");
+    splitSeries = new QtCharts::QLineSeries();
+    chart->addSeries(splitSeries);
+    splitSeries->attachAxis(axisX);
+    splitSeries->attachAxis(axisY);
+    splitSeries->setName("split");
+    splitSeries->setVisible(false);
     QStringList labels;
     labels.append("Filename");
     labels.append("sample");
@@ -85,8 +93,8 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->signalType->setId(ui->normSignalButton, 2);
     ui->fileGroup->setId(ui->edgeButton, 0);
     ui->fileGroup->setId(ui->preEdgeButton, 1);
-    QObject::connect(ui->folderButton, &QPushButton::pressed, this, [=]{
-        qDebug() << this->metaObject()->className() <<  "::folderButton::pressed";
+    QObject::connect(ui->folderButton, &QPushButton::pressed, [=]{
+        qDebug() << this->metaObject()->className() <<  ":: folderButton::pressed";
         QString dir = QFileDialog::getExistingDirectory(this, tr("Select data directory"),
                                                             dataDir,
                                                              QFileDialog::DontUseNativeDialog);
@@ -95,33 +103,35 @@ MainWindow::MainWindow(QWidget *parent) :
             load(dataDir);
             buildFileTable(dataDir);
         }
-        qDebug() << this->metaObject()->className() <<  "::folderButton::pressed::exit";
+        qDebug() << this->metaObject()->className() <<  ":: folderButton::pressed::exit";
     });
-    QObject::connect(ui->exportButton, &QPushButton::pressed, this, [=]{
-        qDebug() << this->metaObject()->className() << "::exportButton::pressed";
-        QString output = QFileDialog::getSaveFileName(this, tr("Select export path"), dataDir, QString(), nullptr,
-                                                      QFileDialog::DontConfirmOverwrite);
+    QObject::connect(ui->exportButton, &QPushButton::pressed, [=]{
+        qDebug() << this->metaObject()->className() << ":: exportButton::pressed";
+        QString output = QFileDialog::getExistingDirectory(this, tr("Select export path"), dataDir, QFileDialog::DontConfirmOverwrite);
         if(output.length() != 0){
-            QFile file(output + ".DAT");
-            file.open(QIODevice::WriteOnly);
-            QTextStream stream(&file);
-            stream << "Time (unused)" << "\t" << "Temp. (unused)" << "\t" << "Magn.Field (Oe)"  << "\t" << "Moment (arb.units)" << "\r\n";
-            int i = 0;
-
-            //fix!___________________________________________________________________________________________debug only
-            /*
-            foreach (QPointF point, dynamic_cast<QtCharts::QLineSeries *>(chart->series().at(0))->points()) {
-                stream << i++ << "\t" << 300.0 << "\t" <<point.x()*10 << "\t" << point.y() << "\r\n";
+            foreach (Calc* curr, calculators) {
+                for(int i = 0; i < 2; ++i){
+                    if(curr->series[i]->isVisible() && curr->series[i]->points().size() > 0){
+                        QFile file(output + "/" + curr->series[i]->name() + ".DAT");
+                        file.open(QIODevice::WriteOnly);
+                        QTextStream stream(&file);
+                        stream << "Time (unused)" << "\t" << "Temp. (unused)" << "\t" << "Magn.Field (Oe)"  << "\t"
+                               << "Moment (arb.units)" << "\r\n";
+                        for(int j = 0; j < curr->series[i]->points().size(); ++j){
+                            stream << j << "\t" << 300.0 << "\t" << curr->series[i]->points().at(j).x()*10 << "\t"
+                                   << curr->series[i]->points().at(j).y() << "\r\n";
+                        }
+                        file.close();
+                    }
+                }
             }
-            */
-            file.close();
         }
-        qDebug() << this->metaObject()->className() << "::exportButton::pressed::exit";
+        qDebug() << this->metaObject()->className() << ":: exportButton::pressed::exit";
     });
     QObject::connect(model, &QFileSystemModel::directoryLoaded, this, &MainWindow::buildFileTable);
     QObject::connect(refresh, &QFileSystemWatcher::directoryChanged, this, &MainWindow::load);
-    QObject::connect(ui->verticalFit1SpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [=](qreal val){
-        qDebug() << this->metaObject()->className() << "::verticalFitSpinBox::valueChanged" << val;
+    QObject::connect(ui->verticalFit1SpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [=](qreal val){
+        qDebug() << this->metaObject()->className() << ":: verticalFitSpinBox::valueChanged" << val;
         Calc* curr = current();
         if(curr != nullptr){
             curr->calc->setVerticalOffset(0, val);
@@ -129,10 +139,10 @@ MainWindow::MainWindow(QWidget *parent) :
         }else{
             qDebug() << "wtf";
         }
-        qDebug() << this->metaObject()->className() << "::verticalFitSpinBox::valueChanged::exit";
+        qDebug() << this->metaObject()->className() << ":: verticalFitSpinBox::valueChanged::exit";
     });
-    QObject::connect(ui->verticalFit2SpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [=](qreal val){
-        qDebug() << this->metaObject()->className() << "::verticalFitSpinBox::valueChanged" << val;
+    QObject::connect(ui->verticalFit2SpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [=](qreal val){
+        qDebug() << this->metaObject()->className() << ":: verticalFitSpinBox::valueChanged" << val;
         Calc* curr = current();
         if(curr != nullptr){
             curr->calc->setVerticalOffset(1, val);
@@ -140,52 +150,65 @@ MainWindow::MainWindow(QWidget *parent) :
         }else{
             qDebug() << "wtf";
         }
-        qDebug() << this->metaObject()->className() << "::verticalFitSpinBox::valueChanged::exit";
+        qDebug() << this->metaObject()->className() << ":: verticalFitSpinBox::valueChanged::exit";
     });
-    QObject::connect(ui->smoothDoubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [=](qreal val){
-        qDebug() << this->metaObject()->className() << "::smoothDoubleSpinBox::valueChanged" << val;
+    QObject::connect(ui->smoothDoubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [=](qreal val){
+        qDebug() << this->metaObject()->className() << ":: smoothDoubleSpinBox::valueChanged" << val;
         Calc* curr = current();
         if(curr != nullptr){
             curr->grain = val;
-            emitSetGrain(curr);
+            QObject::connect(this, &MainWindow::setGrain, curr->calc, &Calculator::setGrain, Qt::QueuedConnection);
+            emit setGrain(curr->grain);
+            QObject::disconnect(this, &MainWindow::setGrain, 0, 0);
         }else{
             qDebug() << "wtf";
         }
-        qDebug() << this->metaObject()->className() << "::smoothDoubleSpinBox::valueChanged::exit";
+        qDebug() << this->metaObject()->className() << ":: smoothDoubleSpinBox::valueChanged::exit";
     });
-    QObject::connect(ui->loadingSmoothSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, [=](int val){
-        qDebug() << this->metaObject()->className() << "::smoothDoubleSpinBox::valueChanged" << val;
+    QObject::connect(ui->loadingSmoothSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), [=](int val){
+        qDebug() << this->metaObject()->className() << ":: smoothDoubleSpinBox::valueChanged" << val;
         Calc* curr = current();
         if(curr != nullptr){
             curr->loadingSmooth = val;
-            emitLoadingSmooth(curr);
+            QObject::connect(this, &MainWindow::setLoadingSmooth, curr->calc, &Calculator::setLoadingSmooth, Qt::QueuedConnection);
+            emit setLoadingSmooth(curr->loadingSmooth);
+            QObject::disconnect(this, &MainWindow::setLoadingSmooth, 0, 0);
         }else{
             qDebug() << "wtf";
         }
-        qDebug() << this->metaObject()->className() << "::smoothDoubleSpinBox::valueChanged::exit";
+        qDebug() << this->metaObject()->className() << ":: smoothDoubleSpinBox::valueChanged::exit";
     });
     QObject::connect(ui->signalType, QOverload<int, bool>::of(&QButtonGroup::buttonToggled), [=](int id, bool state){
-        qDebug() << this->metaObject()->className() << "::signalType::buttonToggled" << id << state;
+        qDebug() << this->metaObject()->className() << ":: signalType::buttonToggled" << id << state;
         if(state){
             Calc* curr = current();
             if(curr != nullptr){
                 curr->signal = id;
                 emitUpdate(curr);
+                if(id == 0){
+                    ui->splitGroupBox->setEnabled(!ui->edgeButton->isChecked() || !ui->preEdgeButton->isChecked());
+                }else{
+                    ui->splitGroupBox->setEnabled(false);
+                }
                 if(id == 2){
                     curr->series[1]->setVisible(false);
                 }
             }else{
                 qDebug() << "wtf";
             }
+            splitSeries->setVisible(false);
+            ui->splitComboBox->setCurrentIndex(0);
+            ui->zeroCheckBox->setEnabled(id == 2);
+            ui->derDoubleSpinBox->setEnabled(id != 2);
             ui->verticalFit1SpinBox->setEnabled(id == 0 && ui->edgeButton->isChecked());
             ui->verticalFit2SpinBox->setEnabled(id == 0 && ui->preEdgeButton->isChecked());
             ui->edgeButton->setEnabled(id != 2);
             ui->preEdgeButton->setEnabled(id != 2);
         }
-        qDebug() << this->metaObject()->className() << "::signalType::buttonToggled exit";
+        qDebug() << this->metaObject()->className() << ":: signalType::buttonToggled exit";
     });
-    QObject::connect(ui->edgeButton, &QRadioButton::toggled, this, [=](bool state){
-        qDebug() << this->metaObject()->className() << "::edgeButton::buttonToggled" << state;
+    QObject::connect(ui->edgeButton, &QRadioButton::toggled, [=](bool state){
+        qDebug() << this->metaObject()->className() << ":: edgeButton::buttonToggled" << state;
         if(!state && !ui->preEdgeButton->isChecked()){
             ui->edgeButton->setChecked(true);
         }else{
@@ -204,15 +227,18 @@ MainWindow::MainWindow(QWidget *parent) :
                     curr->files = 1;
                     curr->series[0]->setVisible(false);
                 }
+                ui->splitGroupBox->setEnabled(curr->files != 2 && ui->rawSignalButton->isChecked());
+                splitSeries->setVisible(false);
+                ui->splitComboBox->setCurrentIndex(0);
                 emitUpdate(curr);
             }else{
                 qDebug() << "wtf";
             }
         }
-        qDebug() << this->metaObject()->className() << "::edgeButton::buttonToggled::exit";
+        qDebug() << this->metaObject()->className() << ":: edgeButton::buttonToggled::exit";
     });
-    QObject::connect(ui->preEdgeButton, &QRadioButton::toggled, this, [=](bool state){
-        qDebug() << this->metaObject()->className() << "::preEdgeButton::buttonToggled" << state;
+    QObject::connect(ui->preEdgeButton, &QRadioButton::toggled, [=](bool state){
+        qDebug() << this->metaObject()->className() << ":: preEdgeButton::buttonToggled" << state;
         if(!state && !ui->edgeButton->isChecked()){
             ui->preEdgeButton->setChecked(true);
         }else{
@@ -231,24 +257,86 @@ MainWindow::MainWindow(QWidget *parent) :
                     curr->files = 0;
                     curr->series[1]->setVisible(false);
                 }
+                ui->splitGroupBox->setEnabled(curr->files != 2 && ui->rawSignalButton->isChecked());
+                splitSeries->setVisible(false);
+                ui->splitComboBox->setCurrentIndex(0);
                 emitUpdate(curr);
             }else{
                 qDebug() << "wtf";
             }
         }
-        qDebug() << this->metaObject()->className() << "::preEdgeButton::buttonToggled::exit";
+        qDebug() << this->metaObject()->className() << ":: preEdgeButton::buttonToggled::exit";
     });
-    QObject::connect(ui->zeroCheckBox, &QCheckBox::toggled, this, [=](bool state){
-        qDebug() << this->metaObject()->className() << "zeroCheckBox::toggled" << state;
+    QObject::connect(ui->zeroCheckBox, &QCheckBox::toggled, [=](bool state){
+        qDebug() << this->metaObject()->className() << ":: zeroCheckBox::toggled" << state;
         Calc* curr = current();
         if(curr->zeroNorm != state){
             curr->zeroNorm = state;
             emitUpdate(curr);
         }
-        qDebug() << this->metaObject()->className() << "zeroCheckBox::toggled exit";
+        qDebug() << this->metaObject()->className() << ":: zeroCheckBox::toggled exit";
     });
-    QObject::connect(ui->fileTable->selectionModel(), &QItemSelectionModel::selectionChanged, this, [=]{
-        qDebug() << this->metaObject()->className() << "::selectionChanged";
+    QObject::connect(ui->derDoubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [=](double val){
+        qDebug() << this->metaObject()->className() << ":: derSpinBox::valueChanged" << val;
+        Calc* curr = current();
+        if(curr->criticalDer != val){
+            curr->criticalDer = val;
+            QObject::connect(this, &MainWindow::setCriticalDer, curr->calc, &Calculator::setCriticalDer, Qt::QueuedConnection);
+            emit setCriticalDer(curr->criticalDer);
+            QObject::disconnect(this, &MainWindow::setCriticalDer, 0, 0);
+        }
+        qDebug() << this->metaObject()->className() << ":: derSpinBox::valueChanged exit";
+    });
+    QObject::connect(ui->splitComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), [=](int index){
+        qDebug() << this->metaObject()->className() << ":: splitComboBox::indexChanged" << index;
+        splitSeries->clear();
+        if(index != -1 && ui->splitComboBox->currentText().size() > 0){
+            Calc* curr = current();
+            int file = 0;
+            if(ui->preEdgeButton->isChecked()){
+                file = 1;
+            }
+            int rise = 1;
+            if(ui->splitComboBox->currentData().toInt() < 0){ //check sign!
+                rise = 0;
+            }
+            int index = qAbs(ui->splitComboBox->currentData().toInt()) - 1;
+            if(curr->calc->splits[file][rise]->at(index)->original->size() > 0){
+                for(int i = 0; i < curr->calc->splits[file][rise]->at(index)->original->size(); ++i){
+                    splitSeries->append(curr->calc->splits[file][rise]->at(index)->original->at(i).x(),
+                                        curr->calc->splits[file][rise]->at(index)->original->at(i).y() - curr->calc->offsets[file]);
+                }
+                splitSeries->setVisible(true);
+            }
+        }
+        qDebug() << this->metaObject()->className() << ":: splitComboBox::indexChanged::exit";
+    });
+    QObject::connect(ui->splitLeftspinBox, QOverload<int>::of(&QSpinBox::valueChanged), [=](int val){
+        qDebug() << this->metaObject()->className() << ":: splitLeftSpinBox::valueChanged" << val;
+        if(ui->splitComboBox->currentIndex() != -1 && ui->splitComboBox->currentText().size() > 0){
+            Calc* curr = current();
+            int file = 0;
+            if(ui->preEdgeButton->isChecked()){
+                file = 1;
+            }
+            int rise = 1;
+            if(ui->splitComboBox->currentData().toInt() < 0){ //check sign!
+                rise = 0;
+            }
+            int index = qAbs(ui->splitComboBox->currentData().toInt()) - 1;
+            if(curr->calc->splits[file][rise]->at(index)->l != val){
+                curr->calc->mutex->lock();
+                curr->calc->splits[file][rise]->at(index)->l = val;
+                curr->calc->mutex->unlock();
+                QObject::connect(this, &MainWindow::updateSplit, curr->calc, &Calculator::updateSplit, Qt::QueuedConnection);
+                emit updateSplit(file, rise, index);
+                QObject::disconnect(this, &MainWindow::updateSplit, 0, 0);
+            }
+        }
+        qDebug() << this->metaObject()->className() << ":: splitLeftSpinBox::valueChanged::exit";
+    });
+    QObject::connect(ui->fileTable->selectionModel(), &QItemSelectionModel::selectionChanged, [=]{
+        qDebug() << this->metaObject()->className() << ":: selectionChanged";
         foreach(Calc* calc, calculators){
             calc->series[0]->setVisible(false);
             calc->series[1]->setVisible(false);
@@ -274,6 +362,8 @@ MainWindow::MainWindow(QWidget *parent) :
                     calc->yRange = QPointF(-1.0, 1.0);
                     calc->files = 0;
                     calc->zeroNorm = false;
+                    calc->criticalDer = criticalDer;
+                    calc->signal = 0;
                     for(int i = 0; i < 2; ++i){
                         calc->series[i] = new QtCharts::QLineSeries(chart);
                         calc->series[i]->setUseOpenGL(true);
@@ -287,8 +377,8 @@ MainWindow::MainWindow(QWidget *parent) :
                     calc->thread->start();
                     QObject::connect(calc->calc, &Calculator::dataPointers, this,
                                      [=](QVector<QPointF>* first, QVector<QPointF>* second, QStringList names){
-                        qDebug() << this->metaObject()->className() << "::dataPointers";
-                        calc->calc->mutex.lock();
+                        qDebug() << this->metaObject()->className() << ":: dataPointers";
+                        calc->calc->mutex->lock();
                         for(int i = 0; i < names.size(); ++i){
                             calc->series[i]->setName(names.at(i));
                             if(i == 0){
@@ -297,19 +387,19 @@ MainWindow::MainWindow(QWidget *parent) :
                                 calc->data[i] = second;
                             }
                         }
-                        calc->calc->mutex.unlock();
+                        calc->calc->mutex->unlock();
                         emitUpdate(calc);
-                        qDebug() << this->metaObject()->className() << "::dataPointers::exit";
+                        qDebug() << this->metaObject()->className() << ":: dataPointers::exit";
                     }, Qt::QueuedConnection);
                     QObject::connect(calc->calc, &Calculator::range, this, [=](QPointF xRange, QPointF yRange){
-                        qDebug() << this->metaObject()->className() << "::range" << xRange << yRange;
+                        qDebug() << this->metaObject()->className() << ":: range" << xRange << yRange;
                         calc->xRange = xRange;
                         calc->yRange = yRange;
                         resizeChart();
-                        qDebug() << this->metaObject()->className() << "::range::exit";
+                        qDebug() << this->metaObject()->className() << ":: range::exit";
                     }, Qt::QueuedConnection);
                     QObject::connect(calc->calc, &Calculator::ready, this, [=](int file){
-                        qDebug() << this->metaObject()->className() << "::ready" << file;
+                        qDebug() << this->metaObject()->className() << ":: ready" << file;
                         {
                             const QSignalBlocker block(calc->series[file]);
                             Q_UNUSED(block);
@@ -318,8 +408,32 @@ MainWindow::MainWindow(QWidget *parent) :
                         }
                         calc->series[file]->pointsReplaced();
                         calc->series[file]->setVisible(true);
-                        qDebug() << this->metaObject()->className() << "::ready::exit";
+                        qDebug() << this->metaObject()->className() << ":: ready::exit";
                     }, Qt::QueuedConnection);
+                    QObject::connect(calc->calc, &Calculator::updateSplits, this, [=](const int file, const int index){
+                        qDebug() << this->metaObject()->className() << ":: updateSplits" << file << index;
+                        if(index == -1){
+                            ui->splitComboBox->clear();
+                            ui->splitComboBox->addItem("", 0);
+                            Calc* curr = current();
+                            for(int rise = 0; rise < 2; ++rise){
+                                //wtf rise is inverted?
+                                QString prefix = "f";
+                                int sign = -1;
+                                if(rise == 1){
+                                    prefix = "r";
+                                    sign = 1;
+                                }
+                                for(int i = 0; i < curr->calc->splits[file][rise]->size(); ++i){
+                                    ui->splitComboBox->addItem(prefix + QString::number(curr->calc->splits[file][rise]->at(i)->x), sign*(i + 1));
+                                }
+                            }
+                        }else{
+                            ui->splitComboBox->currentIndexChanged(ui->splitComboBox->currentIndex());
+                        }
+                        qDebug() << this->metaObject()->className() << ":: sendSplits::exit";
+                    }, Qt::QueuedConnection);
+
                     calc->calc->setLoader(dataDir, name);
                     if(name.endsWith(".PAR")){
                         loadPar(name);
@@ -331,43 +445,43 @@ MainWindow::MainWindow(QWidget *parent) :
             }
             resizeChart();
         }
-        qDebug() << this->metaObject()->className() << "::selectionChanged::exit";
+        qDebug() << this->metaObject()->className() << ":: selectionChanged::exit";
     });
-    QObject::connect(ui->datBox, &QCheckBox::toggled, this, [=](bool state){
-        qDebug() << this->metaObject()->className() << "::datBox::toggled" << state;
+    QObject::connect(ui->datBox, &QCheckBox::toggled, [=](bool state){
+        qDebug() << this->metaObject()->className() << ":: datBox::toggled" << state;
         if(!state && !ui->parBox->isChecked()){
             ui->datBox->setChecked(true);
         }else{
             buildFileTable(dataDir);
         }
-        qDebug() << this->metaObject()->className() << "::datBox::toggled::exit";
+        qDebug() << this->metaObject()->className() << ":: datBox::toggled::exit";
     });
-    QObject::connect(ui->parBox, &QCheckBox::toggled, this, [=](bool state){
-        qDebug() << this->metaObject()->className() << "::parBox::toggled" << state;
+    QObject::connect(ui->parBox, &QCheckBox::toggled, [=](bool state){
+        qDebug() << this->metaObject()->className() << ":: parBox::toggled" << state;
         if(!state && !ui->datBox->isChecked()){
             ui->parBox->setChecked(true);
         }else{
             buildFileTable(dataDir);
         }
-        qDebug() << this->metaObject()->className() << "::parBox::toggled::exit";
+        qDebug() << this->metaObject()->className() << ":: parBox::toggled::exit";
     });
     loadSettings();
     ui->element1Box->addItems(elements);
     ui->element2Box->addItems(elements);
-    QObject::connect(ui->acceptButton, &QPushButton::pressed, this, [=]{
-        qDebug() << this->metaObject()->className() << "::acceptButton::pressed";
+    QObject::connect(ui->acceptButton, &QPushButton::pressed, [=]{
+        qDebug() << this->metaObject()->className() << ":: acceptButton::pressed";
         bool exists = QFile(dataDir + "/" + ui->filenameEdit->text() + ".PAR").exists();
         if((exists && QMessageBox::Yes == QMessageBox(QMessageBox::Information, "Warning!", "Override .par file?",
                                                       QMessageBox::Yes|QMessageBox::No).exec()) || !exists){
             writeParam(ui->filenameEdit->text());
             loadPar("default");
         }
-        qDebug() << this->metaObject()->className() << "::acceptButton::pressed::exit";
+        qDebug() << this->metaObject()->className() << ":: acceptButton::pressed::exit";
     });
-    QObject::connect(ui->discardButton, &QPushButton::pressed, this, [=]{
-        qDebug() << this->metaObject()->className() << "::discardButton::pressed";
+    QObject::connect(ui->discardButton, &QPushButton::pressed, [=]{
+        qDebug() << this->metaObject()->className() << ":: discardButton::pressed";
         loadPar(loaded);
-        qDebug() << this->metaObject()->className() << "::discardButton::pressed::exit";
+        qDebug() << this->metaObject()->className() << ":: discardButton::pressed::exit";
     });
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
 }
@@ -419,6 +533,7 @@ void MainWindow::loadSettings(){
         settings->endArray();
         loadingSmooth = settings->value("loadingSmooth", 5).toInt();
         grain = settings->value("grain", 0.5).toDouble();
+        criticalDer = settings->value("criticalDer", 0.015).toDouble();
     settings->endGroup();
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
 }
@@ -450,11 +565,13 @@ void MainWindow::saveSettings(){
         settings->endArray();
         settings->setValue("loadingSmooth", loadingSmooth);
         settings->setValue("grain", grain);
+        settings->setValue("criticalDer", criticalDer);
     settings->endGroup();
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
 }
 
 void MainWindow::buildFileTable(QString d){
+    //somehow breaks table header
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << d;
     Q_UNUSED(d);
     dats.clear();
@@ -469,7 +586,9 @@ void MainWindow::buildFileTable(QString d){
     delete calcThread;
     */
     calculators.clear();//memory leak
-    ui->fileTable->clear();
+    while(ui->fileTable->rowCount() != 0){
+        ui->fileTable->removeRow(0);
+    }
     ui->dataDirLabel->setText(dataDir);
     QModelIndex childIndex;
     int tableRow = 0;
@@ -722,22 +841,5 @@ void MainWindow::emitUpdate(const Calc* curr){
     QObject::connect(this, &MainWindow::update, curr->calc, &Calculator::update, Qt::QueuedConnection);
     emit update(curr->signal, curr->files, curr->zeroNorm);
     QObject::disconnect(this, &MainWindow::update, 0, 0);
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
-}
-
-void MainWindow::emitLoadingSmooth(const Calc *curr){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__;
-    QObject::connect(this, &MainWindow::setLoadingSmooth, curr->calc, &Calculator::setLoadingSmooth, Qt::QueuedConnection);
-    emit setLoadingSmooth(curr->loadingSmooth);
-    QObject::disconnect(this, &MainWindow::setLoadingSmooth, 0, 0);
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
-}
-
-void MainWindow::emitSetGrain(const Calc *curr){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__;
-    QObject::connect(this, &MainWindow::setGrain, curr->calc, &Calculator::setGrain, Qt::QueuedConnection);
-    qDebug() << curr->grain;
-    emit setGrain(curr->grain);
-    QObject::disconnect(this, &MainWindow::setGrain, 0, 0);
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
 }

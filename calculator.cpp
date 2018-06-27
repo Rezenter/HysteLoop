@@ -12,26 +12,39 @@ bool Calculator::zeroNorm = false;
 
 Calculator::Calculator(QObject *parent) : QObject(parent){
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__;
-    for(int i = 0; i < 2 ; ++i){
-        output[i] = new QVector<QPointF>;
+    mutex = new QMutex(QMutex::Recursive);
+    for(int file = 0; file < 2 ; ++file){
+        output[file] = new QVector<QPointF>;
+        splits[file][0] = new QList<Calculator::Split*>;
+        splits[file][1] = new QList<Calculator::Split*>;
     }
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
 }
 
 Calculator::~Calculator(){
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__;
-    mutex.lock();
-    for(int i = 0; i < 2; ++i){
-        for(int j = 0; j < storage[i].size(); ++j){
-            delete[] storage[i].at(j);
+    mutex->lock();
+    for(int file = 0; file < 2; ++file){
+        for(int j = 0; j < storage[file].size(); ++j){
+            delete[] storage[file].at(j);
         }
-        storage[i].clear();
-        output[i]->clear();
-        delete output[i];
-        gridFall[i].clear();
-        gridRise[i].clear();
+        storage[file].clear();
+        output[file]->clear();
+        delete output[file];
+        grid[file][0].clear();
+        grid[file][1].clear();
+        for(int rise = 0; rise < 2; ++rise){
+            for(int i = 0; i < splits[file][rise]->size(); ++i){
+                splits[file][rise]->at(i)->original->clear();
+                delete splits[file][rise]->at(i)->original;
+                delete splits[file][rise]->at(i);
+            }
+            splits[file][rise]->clear();
+            delete splits[file][rise];
+        }
     }
-    mutex.unlock();
+    mutex->unlock();
+    delete mutex;
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
     emit dead();
 }
@@ -58,24 +71,32 @@ void Calculator::setLoadingSmooth(const int count){
 void Calculator::load(){
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__;
     if(filename.size() != 0){
-        mutex.lock();
+        mutex->lock();
         xRange = QPointF(std::numeric_limits<double>::max(), std::numeric_limits<double>::lowest());
         firstRange = xRange;
-        for(int i = 0; i < 2; ++i){
-            for(int j = 0; j < storage[i].size(); ++j){
-                delete[] storage[i].at(j);
+        for(int file = 0; file < 2; ++file){
+            for(int j = 0; j < storage[file].size(); ++j){
+                delete[] storage[file].at(j);
             }
-            storage[i].clear();
-            output[i]->clear();
-            gridFall[i].clear();
-            gridRise[i].clear();
-            loaded[i] = false;
-            tableFilled[i] = false;
-            shuffled[i] = false;
-            exported[i] = false;
-            yRange[i] = xRange;
+            storage[file].clear();
+            output[file]->clear();
+            grid[file][0].clear();
+            grid[file][1].clear();
+            loaded[file] = false;
+            tableFilled[file] = false;
+            shuffled[file] = false;
+            exported[file] = false;
+            yRange[file] = xRange;
+            for(int rise = 0; rise < 2; ++rise){
+                for(int i = 0; i < splits[file][rise]->size(); ++i){
+                    splits[file][rise]->at(i)->original->clear();
+                    delete splits[file][rise]->at(i)->original;
+                    delete splits[file][rise]->at(i);
+                }
+                splits[file][rise]->clear();
+            }
         }
-        mutex.unlock();
+        mutex->unlock();
         QFile dataFile;
         QTextStream* stream;
         QStringList names;
@@ -105,7 +126,7 @@ void Calculator::load(){
         }
         dataFile.close();
         emit dataPointers(output[0], output[1], names);
-        //wait for update() signal
+        //synchronize with MainWindow and wait for update() signal
     }
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
 }
@@ -113,17 +134,14 @@ void Calculator::load(){
 void Calculator::fillTable(const int file, QTextStream *stream){
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file;
     double xMult = 290.0/0.0393; //emperical value needed in order to fit [-3, +3] mT
-    double xScale = 1.0;
-    double yScale = 1.0;
-    double zScale = 1.0;
     QStringList buffer;
-    for(int i = 0; i < 9; ++i){
+    for(int i = 0; i < 9; ++i){ //bufferisation needed in order to read scale from 8th line
         buffer.append(stream->readLine());
     }
     QStringList args = buffer.at(8).split(",");
-    xScale = args.at(1).toDouble()*xMult;
-    yScale = args.at(7).toDouble();
-    zScale = args.at(19).toDouble();
+    double xScale = args.at(1).toDouble()*xMult;
+    double yScale = args.at(7).toDouble();
+    double zScale = args.at(19).toDouble();
     while(!stream->atEnd()) {
         QString line;
         if(!buffer.isEmpty()){
@@ -198,11 +216,10 @@ void Calculator::setGrain(const qreal val){
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << val;
     if(val != grain){
         grain = val;
-        if(tableFilled[0]){
-            fillGrid(0);
-        }
-        if(tableFilled[1]){
-            fillGrid(1);
+        for(int file = 0; file < 2; ++file){
+            if(tableFilled[file]){
+                fillGrid(file);
+            }
         }
         update();
     }
@@ -225,50 +242,42 @@ void Calculator::fillGrid(const int file){
         xRange = QPointF(std::numeric_limits<double>::max(), std::numeric_limits<double>::lowest());
         yRange[file] = yRange[file];
         qreal offset = verticalOffset[file]/2.0;
-        gridFall[file].clear();
-        gridFall[file].resize(qCeil((600.0 + grain - 0.1)/grain));
-        gridRise[file].clear();
-        gridRise[file].resize(qCeil((600.0 + grain - 0.1)/grain));
+        for(int rise = 0; rise < 2; ++rise){
+            grid[file][rise].clear();
+            grid[file][rise].resize(qCeil((600.0 + grain - 0.1)/grain));
+        }
         int count = 0;
         foreach (qreal* row, storage[file]) {
             int gridIndex = qFloor((row[0] + 300.0 + grain/2.0)/grain);
             qreal x = gridIndex*grain - 300.0;
             qreal y;
             qreal z;
+            int rise = 0;
             if(count < qFloor(storage[file].size()/2)){
-                if(gridRise[file].at(gridIndex).second.x() == 0.0 && gridRise[file].at(gridIndex).second.y() == 0.0){
-                    y = row[1] - offset;
-                    z = row[2];
-                }else{
-                    y = (row[1] - offset + gridRise[file].at(gridIndex).second.x())/2.0;
-                    z = (row[2] + gridRise[file].at(gridIndex).second.y())/2.0;
-                }
-                gridRise[file].replace(gridIndex, QPair<qreal, QPointF>(x, QPointF(y, z)));
-            }else{
-                if(gridFall[file].at(gridIndex).second.x() == 0.0 && gridFall[file].at(gridIndex).second.y() == 0.0){
-                    y = row[1] + offset;
-                    z = row[2];
-                }else{
-                    y = (row[1] + offset + gridFall[file].at(gridIndex).second.x())/2.0;
-                    z = (row[2] + gridFall[file].at(gridIndex).second.y())/2.0;
-                }
-                gridFall[file].replace(gridIndex, QPair<qreal, QPointF>(x, QPointF(y, z)));
+                rise = 1;
             }
+            int sign = qPow(-1.0, rise + 1.0);
+            if(grid[file][rise].at(gridIndex).second.x() == 0.0 && grid[file][rise].at(gridIndex).second.y() == 0.0){
+                y = row[1] - sign*offset;
+                z = row[2];
+            }else{
+                y = (row[1] - sign*offset + grid[file][rise].at(gridIndex).second.x())/2.0;
+                z = (row[2] + grid[file][rise].at(gridIndex).second.y())/2.0;
+            }
+            grid[file][rise].replace(gridIndex, QPair<qreal, QPointF>(x, QPointF(y, z)));
             count ++;
         }
-        for(int i = 0; i < gridFall[file].size(); ++i){
-            if(gridFall[file].at(i).first == 0.0 && gridFall[file].at(i).second.x() == 0.0 && gridFall[file].at(i).second.y() == 0.0){
-                gridFall[file].remove(i);
-                i--;
+        for(int rise = 0; rise < 2; ++rise){
+            for(int i = 0; i < grid[file][rise].size(); ++i){
+                if(grid[file][rise].at(i).first == 0.0 && grid[file][rise].at(i).second.x() == 0.0 && grid[file][rise].at(i).second.y() == 0.0){
+                    grid[file][rise].remove(i);
+                    i--;
+                }
             }
         }
-        for(int i = 0; i < gridRise[file].size(); ++i){
-            if(gridRise[file].at(i).first == 0.0 && gridRise[file].at(i).second.x() == 0.0 && gridRise[file].at(i).second.y() == 0.0){
-                gridRise[file].remove(i);
-                i--;
-            }
-        }
+        fixedGrid = grid;
         loaded[file] = true;
+        findSplits(file);
     }else{
         qDebug() << "not shuffled yet";
     }
@@ -283,7 +292,7 @@ void Calculator::update(const int signal, const int newFiles, const bool newZero
     firstRange = QPointF();
     exported[0] = false;
     exported[1] = false;
-    mutex.lock();
+    mutex->lock();
     if(type == 0 || type == 1){
         if(files == 0 || files == 2){
             fillOutput(0);
@@ -298,15 +307,15 @@ void Calculator::update(const int signal, const int newFiles, const bool newZero
     }
     for(int file = 0; file < 2; ++file){
         if(exported[file]){
-            qreal offset = (yRange[file].x() + yRange[file].y())/2.0;
-            QPointF offsetP(offset, offset);
+            offsets[file] = (yRange[file].x() + yRange[file].y())/2.0;
+            QPointF offsetP(offsets[file], offsets[file]);
             for(int i = 0; i < output[file]->size(); ++i){
                 output[file]->replace(i, output[file]->at(i) - offsetP);
             }
             yRange[file] -= offsetP;
         }
     }
-    mutex.unlock();
+    mutex->unlock();
     if(exported[0] && exported[1]){
         emit range(xRange, QPointF(qMin(yRange[0].x(), yRange[1].x()), qMax(yRange[0].y(), yRange[1].y())));
     }else if(exported[0]){
@@ -346,137 +355,85 @@ void Calculator::fillOutput(const int file){
         output[file]->clear();
         switch (type) {
         case 0:
-            for(int i = gridFall[file].size() - 1; i >= 0 ; --i){
-                output[file]->append(QPointF(gridFall[file].at(i).first, gridFall[file].at(i).second.x()));
+            for(int i = fixedGrid[file][0].size() - 1; i >= 0 ; --i){
+                output[file]->append(QPointF(fixedGrid[file][0].at(i).first, fixedGrid[file][0].at(i).second.x()));
                 checkRange(output[file]->last(), file);
             }
-            for(int i = 0; i < gridRise[file].size(); ++i){
-                output[file]->append(QPointF(gridRise[file].at(i).first, gridRise[file].at(i).second.x()));
+            for(int i = 0; i < fixedGrid[file][1].size(); ++i){
+                output[file]->append(QPointF(fixedGrid[file][1].at(i).first, fixedGrid[file][1].at(i).second.x()));
                 checkRange(output[file]->last(), file);
             }
             break;
         case 1:
-            for(int i = gridFall[file].size() - 1; i >= 0 ; --i){
-                output[file]->append(QPointF(gridFall[file].at(i).first, gridFall[file].at(i).second.y()));
+            for(int i = fixedGrid[file][0].size() - 1; i >= 0 ; --i){
+                output[file]->append(QPointF(fixedGrid[file][0].at(i).first, fixedGrid[file][0].at(i).second.y()));
                 checkRange(output[file]->last(), file);
             }
-            for(int i = 0; i < gridRise[file].size(); ++i){
-                output[file]->append(QPointF(gridRise[file].at(i).first, gridRise[file].at(i).second.y()));
+            for(int i = 0; i < fixedGrid[file][1].size(); ++i){
+                output[file]->append(QPointF(fixedGrid[file][1].at(i).first, fixedGrid[file][1].at(i).second.y()));
                 checkRange(output[file]->last(), file);
             }
             break;
         case 2:
             if(loaded[1]){
-                //crash @ small grain and large
                 qreal sensRelation = sensetivity[0]/sensetivity[1];
-                for(int i = gridFall[0].size() - 1; i >= 0 ; --i){
-                    //qDebug() << i;
-                    qreal x = gridFall[0].at(i).first;
-                    int zeroIndex = i;
-                    if(gridFall[1].size() <= zeroIndex){
-                        zeroIndex = gridFall[1].size() - 1;
-                    }
-                    while(true){
-                        if(gridFall[1].at(zeroIndex).first > x){
-                            if(zeroIndex > 0){
-                                zeroIndex--;
-                                if(zeroIndex > 0 && gridFall[1].at(zeroIndex).first > x){
-                                    continue;
+                for(int rise = 0; rise < 2; ++rise){
+                    int sign = qPow(-1.0, rise + 1.0);
+                    for(int i = rise*(fixedGrid[0][rise].size() - 1); i >= 0 && i < fixedGrid[0][rise].size(); i -= sign){
+                        qreal x = fixedGrid[0][rise].at(i).first;
+                        int zeroIndex = i;
+                        if(fixedGrid[1][rise].size() <= zeroIndex){
+                            zeroIndex = fixedGrid[1][rise].size() - 1;
+                        }
+                        while(true){
+                            if(fixedGrid[1][rise].at(zeroIndex).first > x){
+                                if(zeroIndex > 0){
+                                    zeroIndex--;
+                                    if(zeroIndex > 0 && fixedGrid[1][rise].at(zeroIndex).first > x){
+                                        continue;
+                                    }
+                                }
+                            }else if(fixedGrid[1][rise].at(zeroIndex).first < x){
+                                if(zeroIndex < fixedGrid[1][rise].size()){
+                                    zeroIndex++;
+                                    if(zeroIndex < fixedGrid[1][rise].size() && fixedGrid[1][rise].at(zeroIndex).first < x){
+                                        continue;
+                                    }
                                 }
                             }
-                        }else if(gridFall[1].at(zeroIndex).first < x){
-                            if(zeroIndex < gridFall[1].size()){
-                                zeroIndex++;
-                                if(zeroIndex < gridFall[1].size() && gridFall[1].at(zeroIndex).first < x){
-                                    continue;
+                            break;
+                        }
+                        if(zeroIndex < fixedGrid[1][rise].size() && fixedGrid[1][rise].at(0).first < x){ //if the point is not hanging beyond edges
+                            qreal y = fixedGrid[1][rise].at(zeroIndex).second.x();
+                            qreal z = fixedGrid[1][rise].at(zeroIndex).second.y();
+                            if(fixedGrid[1][rise].at(zeroIndex).first < x){
+                                if(zeroIndex < fixedGrid[1][rise].size() - 1){
+                                    y = fixedGrid[1][rise].at(zeroIndex).second.x() + ((x - fixedGrid[1][rise].at(zeroIndex).first)/
+                                            (fixedGrid[1][rise].at(zeroIndex).first + fixedGrid[1][rise].at(zeroIndex + 1).first))*
+                                            (fixedGrid[1][rise].at(zeroIndex + 1).second.x() - fixedGrid[1][rise].at(zeroIndex).second.x());
+                                    z = fixedGrid[1][rise].at(zeroIndex).second.y() + ((x - fixedGrid[1][rise].at(zeroIndex).first)/
+                                            (fixedGrid[1][rise].at(zeroIndex).first + fixedGrid[1][rise].at(zeroIndex + 1).first))*
+                                            (fixedGrid[1][rise].at(zeroIndex + 1).second.y() - fixedGrid[1][rise].at(zeroIndex).second.y());
+                                }
+                            }else if(fixedGrid[1][rise].at(zeroIndex).first != x){
+                                if(zeroIndex > 0){
+                                    y = fixedGrid[1][rise].at(zeroIndex - 1).second.x() + ((x - fixedGrid[1][rise].at(zeroIndex - 1).first)/
+                                            (fixedGrid[1][rise].at(zeroIndex - 1).first + fixedGrid[1][rise].at(zeroIndex).first))*
+                                            (fixedGrid[1][rise].at(zeroIndex).second.x() - fixedGrid[1][rise].at(zeroIndex - 1).second.x());
+                                    z = fixedGrid[1][rise].at(zeroIndex - 1).second.y() + ((x - fixedGrid[1][rise].at(zeroIndex - 1).first)/
+                                            (fixedGrid[1][rise].at(zeroIndex - 1).first + fixedGrid[1][rise].at(zeroIndex).first))*
+                                            (fixedGrid[1][rise].at(zeroIndex).second.y() - fixedGrid[1][rise].at(zeroIndex - 1).second.y());
                                 }
                             }
-                        }
-                        break;
-                    }
-                    qreal y = gridFall[1].at(zeroIndex).second.x();
-                    qreal z = gridFall[1].at(zeroIndex).second.y();
-                    if(gridFall[1].at(zeroIndex).first < x){
-                        if(zeroIndex < gridFall[1].size() - 1){
-                            y = gridFall[1].at(zeroIndex).second.x() + ((x - gridFall[1].at(zeroIndex).first)/
-                                    (gridFall[1].at(zeroIndex).first + gridFall[1].at(zeroIndex + 1).first))*
-                                    (gridFall[1].at(zeroIndex + 1).second.x() - gridFall[1].at(zeroIndex).second.x());
-                            z = gridFall[1].at(zeroIndex).second.y() + ((x - gridFall[1].at(zeroIndex).first)/
-                                    (gridFall[1].at(zeroIndex).first + gridFall[1].at(zeroIndex + 1).first))*
-                                    (gridFall[1].at(zeroIndex + 1).second.y() - gridFall[1].at(zeroIndex).second.y());
-                        }
-                    }else if(gridFall[1].at(zeroIndex).first != x){
-                        if(zeroIndex > 0){
-                            y = gridFall[1].at(zeroIndex - 1).second.x() + ((x - gridFall[1].at(zeroIndex - 1).first)/
-                                    (gridFall[1].at(zeroIndex - 1).first + gridFall[1].at(zeroIndex).first))*
-                                    (gridFall[1].at(zeroIndex).second.x() - gridFall[1].at(zeroIndex - 1).second.x());
-                            z = gridFall[1].at(zeroIndex - 1).second.y() + ((x - gridFall[1].at(zeroIndex - 1).first)/
-                                    (gridFall[1].at(zeroIndex - 1).first + gridFall[1].at(zeroIndex).first))*
-                                    (gridFall[1].at(zeroIndex).second.y() - gridFall[1].at(zeroIndex - 1).second.y());
-                        }
-                    }
-                    if(zeroNorm){
-                        y = (gridFall[0].at(i).second.x()/z)*sensRelation/y;
-                    }else{
-                        y = gridFall[0].at(i).second.x()*sensRelation/y;
-                    }
-                    output[0]->append(QPointF(gridFall[0].at(i).first, y));
-                    checkRange(output[0]->last(), 0);
-                }
-                qDebug() << "separator";
-                //rise-fall separator
-                for(int i = 0; i < gridRise[0].size(); ++i){
-                    qreal x = gridRise[0].at(i).first;
-                    int zeroIndex = i;
-                    if(gridRise[1].size() <= zeroIndex){
-                        zeroIndex = gridRise[1].size() - 1;
-                    }
-                    while(true){
-                        if(gridRise[1].at(zeroIndex).first > x){
-                            if(zeroIndex > 0){
-                                zeroIndex--;
-                                if(zeroIndex > 0 && gridRise[1].at(zeroIndex).first > x){
-                                    continue;
-                                }
+                            if(zeroNorm){
+                                y = (fixedGrid[0][rise].at(i).second.x()/z)*sensRelation/y;
+                            }else{
+                                y = fixedGrid[0][rise].at(i).second.x()*sensRelation/y;
                             }
-                        }else if(gridRise[1].at(zeroIndex).first < x){
-                            if(zeroIndex < gridRise[1].size()){
-                                zeroIndex++;
-                                if(zeroIndex < gridRise[1].size() && gridRise[1].at(zeroIndex).first < x){
-                                    continue;
-                                }
-                            }
-                        }
-                        break;
-                    }
-                    qreal y = gridRise[1].at(zeroIndex).second.x();
-                    qreal z = gridRise[1].at(zeroIndex).second.y();
-                    if(gridRise[1].at(zeroIndex).first < x){
-                        if(zeroIndex < gridRise[1].size() - 1){
-                            y = gridRise[1].at(zeroIndex).second.x() + ((x - gridRise[1].at(zeroIndex).first)/
-                                    (gridRise[1].at(zeroIndex).first + gridRise[1].at(zeroIndex + 1).first))*
-                                    (gridRise[1].at(zeroIndex + 1).second.x() - gridRise[1].at(zeroIndex).second.x());
-                            z = gridRise[1].at(zeroIndex).second.y() + ((x - gridRise[1].at(zeroIndex).first)/
-                                    (gridRise[1].at(zeroIndex).first + gridRise[1].at(zeroIndex + 1).first))*
-                                    (gridRise[1].at(zeroIndex + 1).second.y() - gridRise[1].at(zeroIndex).second.y());
-                        }
-                    }else if(gridRise[1].at(zeroIndex).first != x){
-                        if(zeroIndex > 0){
-                            y = gridRise[1].at(zeroIndex - 1).second.x() + ((x - gridRise[1].at(zeroIndex - 1).first)/
-                                    (gridRise[1].at(zeroIndex - 1).first + gridRise[1].at(zeroIndex).first))*
-                                    (gridRise[1].at(zeroIndex).second.x() - gridRise[1].at(zeroIndex - 1).second.x());
-                            z = gridRise[1].at(zeroIndex - 1).second.y() + ((x - gridRise[1].at(zeroIndex - 1).first)/
-                                    (gridRise[1].at(zeroIndex - 1).first + gridRise[1].at(zeroIndex).first))*
-                                    (gridRise[1].at(zeroIndex).second.y() - gridRise[1].at(zeroIndex - 1).second.y());
+                            output[0]->append(QPointF(fixedGrid[0][rise].at(i).first, y));
+                            checkRange(output[0]->last(), 0);
                         }
                     }
-                    if(zeroNorm){
-                        y = (gridRise[0].at(i).second.x()/z)*sensRelation/y;
-                    }else{
-                        y = gridRise[0].at(i).second.x()*sensRelation/y;
-                    }
-                    output[0]->append(QPointF(gridRise[0].at(i).first, y));
-                    checkRange(output[0]->last(), 0);
                 }
             }else{
                 qDebug() << "gui error: not loaded";
@@ -486,5 +443,74 @@ void Calculator::fillOutput(const int file){
             break;
         }
     }
+    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+}
+
+void Calculator::setCriticalDer(const qreal val){
+    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << val;
+    if(criticalDer != val){
+        criticalDer = val;
+        findSplits(0);
+        findSplits(1);
+    }
+    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+}
+
+void Calculator::findSplits(const int file){
+    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file << criticalDer;
+    if(loaded[file]){
+        mutex->lock();
+        for(int rise = 0; rise < 2; ++rise){
+            for(int i = 0; i < splits[file][rise]->size(); ++i){
+                splits[file][rise]->at(i)->original->clear();
+                delete splits[file][rise]->at(i)->original;
+                delete splits[file][rise]->at(i);
+            }
+            splits[file][rise]->clear();
+            if(grid[file][rise].size() > 1){
+                QPair<qreal, QPointF> prev = grid[file][rise].at(0);
+                for(int i = 1; i < grid[file][rise].size(); ++i){
+                    QPair<qreal, QPointF> point = grid[file][rise].at(i);
+                    if(qAbs((point.second.x() - prev.second.x())/(point.first - prev.first)) > criticalDer){
+                        splits[file][rise]->append(new Calculator::Split);
+                        splits[file][rise]->last()->x = point.first;
+                        splits[file][rise]->last()->index = i;
+                        splits[file][rise]->last()->original = new QVector<QPointF>;
+                        updateSplit(file, rise, splits[file][rise]->size() - 1);
+                    }
+                    prev = point;
+                }
+            }
+        }
+        mutex->unlock();
+        emit updateSplits(file);
+    }
+    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+}
+
+void Calculator::updateSplit(const int file, const int rise, const int index){
+    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file << rise << index;
+    Split* curr = splits[file][rise]->at(index);
+    mutex->lock();
+    std::array<qreal, 3> coeff;
+    int l = qMax(curr->index - curr->l, 0);
+    int r = qMin(curr->index + curr->r, grid[file][rise].size() - 1);
+    QPointF lp = QPointF(grid[file][rise].at(l).first, grid[file][rise].at(l).second.x());
+    QPointF rp = QPointF(grid[file][rise].at(r).first, grid[file][rise].at(r).second.x());
+    if(curr->index - l != 0 && r - curr->index != 0){
+        qreal mid = qAbs(rp.y() - lp.y())*curr->shift + qMin(rp.y(), lp.y()); //mid.y //mid.x = curr.x
+        coeff[0] = (lp.y() - mid + ((curr->x - lp.x())*(mid - rp.y()))/(curr->x - rp.x()))/
+                (qPow(lp.x(), 2.0) - qPow(curr->x, 2.0) + ((qPow(rp.x(), 2.0) - qPow(curr->x, 2.0))*(lp.x() - curr->x))/(curr->x - rp.x()));
+        coeff[1] = (mid - rp.y() - coeff[0]*(qPow(curr->x, 2.0) - qPow(rp.x(), 2.0)))/(curr->x - rp.x());
+        coeff[2] = rp.y() - coeff[0]*qPow(rp.x(), 2.0) - coeff[1]*rp.x();
+        for(int i = l; i <= r; ++i){
+            curr->original->append(QPointF(grid[file][rise].at(i).first, grid[file][rise].at(i).second.x()));
+            qreal x = grid[file][rise].at(i).first;
+            fixedGrid[file][rise].replace(i, QPair<qreal, QPointF>(x, QPointF(coeff[0]*qPow(x, 2.0) + coeff[1]*x + coeff[2],
+                    grid[file][rise].at(i).second.y())));
+        }
+    }
+    mutex->unlock();
+    emit updateSplits(file, index);
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
 }

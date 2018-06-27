@@ -13,13 +13,24 @@ class Calculator : public QObject{
 
 public:
     Calculator(QObject *parent = 0);
-    QMutex mutex;
+    QMutex* mutex;
+    struct Split{
+        qreal x;
+        int index;
+        int l = 20;
+        int r = 20;
+        qreal shift = 0.5;
+        QVector<QPointF>* original;
+    };
+    std::array<qreal, 2> offsets{{0.0, 0.0}};
+    std::array<std::array<QList<Calculator::Split*>*, 2> ,2> splits;//[file][rise/fall] // rise = 1 , fall = 0
     ~Calculator();
 
 signals:
     void dataPointers(QVector<QPointF>* edge, QVector<QPointF>* preEdge, QStringList names);
     void range(QPointF xRange, QPointF yRange);
     void ready(const int file);
+    void updateSplits(const int file, const int index = -1);
     void dead();
 
 public slots:
@@ -28,16 +39,18 @@ public slots:
     void update(const int signal = type, const int fileSelection = files, const bool newZeroNorm = zeroNorm);
     void setGrain(const qreal val);
     void setVerticalOffset(const int file, const qreal val);
+    void setCriticalDer(const qreal val);
+    void updateSplit(const int file, const int rise, const int index);
 
 private:
-    QVector<QPointF>* output[2];
-    QVector<QPair<qreal, QPointF>> gridFall[2]; //<x, <y, i-zero>> [file] //Reverse order!!!
-    QVector<QPair<qreal, QPointF>> gridRise[2]; //<x, <y, i-zero>> [file]
+    std::array<QVector<QPointF>*, 2> output;
+    std::array<std::array<QVector<QPair<qreal, QPointF>>, 2>, 2> grid;//<x, <y, i-zero>>[file][rise/fall] // rise = 1 , fall = 0 reverse order!
+    std::array<std::array<QVector<QPair<qreal, QPointF>>, 2>, 2> fixedGrid;
     QString path = "";
     QString filename = "";
-    int sensetivity[2] = {1, 1};
-    bool loaded[2] = {false, false};
-    bool tableFilled[2] = {false, false};
+    std::array<int, 2> sensetivity{{1, 1}};
+    std::array<bool, 2> loaded{{false, false}};
+    std::array<bool, 2> tableFilled{{false, false}};
     int loadingSmooth = 5;
     void load();
     void fillTable(const int file, QTextStream* stream);
@@ -45,17 +58,19 @@ private:
     void shuffle(const int file);
     void checkRange(const QPointF point, const int file);
     QPointF xRange;
-    QPointF yRange[2];
+    std::array<QPointF, 2> yRange;
     static int type;
     static int files; //0 = only first, 1 = only second ,2 = both
     static bool zeroNorm;
     qreal grain = 0.5; //store in settings
-    bool shuffled[2] = {false, false};
-    QVector<qreal*> storage[2]; //row<value[column]>
-    qreal verticalOffset[2] = {0.0, 0.0};
+    std::array<bool, 2> shuffled{{false, false}};
+    std::array<QVector<qreal*>, 2> storage; //row<value[column]>[file]
+    std::array<qreal, 2> verticalOffset{{0.0, 0.0}};
     void fillOutput(const int file);
-    bool exported[2] = {false, false};
+    std::array<bool, 2> exported{{false, false}};
     QPointF firstRange;
+    qreal criticalDer = 0.015;
+    void findSplits(const int file);
 };
 
 
