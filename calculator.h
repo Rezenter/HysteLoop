@@ -17,10 +17,12 @@ public:
     struct Split{
         qreal x;
         int index;
-        int l = 20;
-        int r = 20;
+        int l = 0;
+        int r = 0;
         qreal shift = 0.5;
         QVector<QPointF>* original;
+        int oldL = 0;
+        int oldR = 0;
     };
     std::array<qreal, 2> offsets{{0.0, 0.0}};
     std::array<std::array<QList<Calculator::Split*>*, 2> ,2> splits;//[file][rise/fall] // rise = 1 , fall = 0
@@ -32,6 +34,7 @@ signals:
     void ready(const int file);
     void updateSplits(const int file, const int index = -1);
     void dead();
+    void exportProgress(const int progress);
 
 public slots:
     void setLoader(const QString loaderPath, const QString filename);
@@ -39,8 +42,9 @@ public slots:
     void update(const int signal = type, const int fileSelection = files, const bool newZeroNorm = zeroNorm);
     void setGrain(const qreal val);
     void setVerticalOffset(const int file, const qreal val);
-    void setCriticalDer(const qreal val);
+    void setCriticalDer(const int file, const qreal val);
     void updateSplit(const int file, const int rise, const int index);
+    void exportSeries(const QString path);
 
 private:
     std::array<QVector<QPointF>*, 2> output;
@@ -69,8 +73,9 @@ private:
     void fillOutput(const int file);
     std::array<bool, 2> exported{{false, false}};
     QPointF firstRange;
-    qreal criticalDer = 0.015;
+    std::array<qreal, 2> criticalDer{{0.015, 0.015}};
     void findSplits(const int file);
+    void exportSeries(const int file, const QString path);
 };
 
 

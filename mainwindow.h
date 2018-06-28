@@ -40,8 +40,9 @@ signals:
     void setLoader(const QString loaderPath, const QString filename);
     void setLoadingSmooth(const int count);
     void update(const int signal, const int files, const bool zeroNorm);
-    void setCriticalDer(const qreal val);
+    void setCriticalDer(const int file, const qreal val);
     void updateSplit(const int file, const int rise, const int index);
+    void exportSeries(const QString path);
 
 private:
     Ui::MainWindow* ui;
@@ -60,7 +61,7 @@ private:
         int loadingSmooth;
         bool zeroNorm;
         std::array<bool, 2> visability;
-        qreal criticalDer;
+        std::array<qreal, 2> criticalDer;
     };
     void loadSettings();
     void saveSettings();
@@ -95,11 +96,13 @@ private:
     qreal grain = 0.5;
     Calc* current();
     void emitUpdate(const Calc* curr);
-    qreal criticalDer = 0.015;
+    std::array<qreal, 2> criticalDer{{0.015, 0.015}};
+    std::array<qreal, 2> verticalFit{{0.0, 0.0}};
 
 private slots:
     void buildFileTable(QString);
     void load(QString);
+    void updateSplits(const int file, const int index);
 };
 
 #endif // MAINWINDOW_H

@@ -8,16 +8,14 @@
  *crash @ folder change while any file is selected
  *
  * reload par after alteration
- * save visability at selectionChanged call
  *
+ * save comments at exit from current folder
  *
  * second file in export
  * default export name
  * table sorting
  * multifile export
  * multifile comparasion with common export
- * artifact correction
- * oscillation smooth?
  * highlight default values in peram panel
  *
  *  multiple loop comparaison
@@ -86,13 +84,14 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->fileTable->setColumnCount(labels.size());
     ui->fileTable->setHorizontalHeaderLabels(labels);
     ui->fileTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-    ui->fileTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    ui->fileTable->setSelectionMode(QAbstractItemView::ExtendedSelection);
     ui->fileTable->horizontalHeader()->setStretchLastSection(true);
     ui->signalType->setId(ui->rawSignalButton, 0);
     ui->signalType->setId(ui->zeroSignalButton, 1);
     ui->signalType->setId(ui->normSignalButton, 2);
     ui->fileGroup->setId(ui->edgeButton, 0);
     ui->fileGroup->setId(ui->preEdgeButton, 1);
+    ui->fileGroup->setId(ui->bothButton, 2);
     QObject::connect(ui->folderButton, &QPushButton::pressed, [=]{
         qDebug() << this->metaObject()->className() <<  ":: folderButton::pressed";
         QString dir = QFileDialog::getExistingDirectory(this, tr("Select data directory"),
@@ -110,19 +109,15 @@ MainWindow::MainWindow(QWidget *parent) :
         QString output = QFileDialog::getExistingDirectory(this, tr("Select export path"), dataDir, QFileDialog::DontConfirmOverwrite);
         if(output.length() != 0){
             foreach (Calc* curr, calculators) {
-                for(int i = 0; i < 2; ++i){
-                    if(curr->series[i]->isVisible() && curr->series[i]->points().size() > 0){
-                        QFile file(output + "/" + curr->series[i]->name() + ".DAT");
-                        file.open(QIODevice::WriteOnly);
-                        QTextStream stream(&file);
-                        stream << "Time (unused)" << "\t" << "Temp. (unused)" << "\t" << "Magn.Field (Oe)"  << "\t"
-                               << "Moment (arb.units)" << "\r\n";
-                        for(int j = 0; j < curr->series[i]->points().size(); ++j){
-                            stream << j << "\t" << 300.0 << "\t" << curr->series[i]->points().at(j).x()*10 << "\t"
-                                   << curr->series[i]->points().at(j).y() << "\r\n";
-                        }
-                        file.close();
-                    }
+                if(curr->series[0]->isVisible() || curr->series[1]->isVisible()){
+                    ui->progressBar->setValue(0);
+                    QDir().mkdir(output + "/" + curr->name);
+                    QObject::connect(this, &MainWindow::exportSeries, curr->calc, QOverload<QString>::of(&Calculator::exportSeries)
+                                     , Qt::QueuedConnection);
+                    QObject::connect(curr->calc, &Calculator::exportProgress, this->ui->progressBar,
+                                     &QProgressBar::setValue, Qt::QueuedConnection);
+                    emit exportSeries(output + "/" + curr->name);
+                    QObject::disconnect(this, &MainWindow::exportSeries, 0, 0);
                 }
             }
         }
@@ -199,73 +194,45 @@ MainWindow::MainWindow(QWidget *parent) :
             splitSeries->setVisible(false);
             ui->splitComboBox->setCurrentIndex(0);
             ui->zeroCheckBox->setEnabled(id == 2);
-            ui->derDoubleSpinBox->setEnabled(id != 2);
+            ui->der1DoubleSpinBox->setEnabled(id == 0 && ui->edgeButton->isChecked());
+            ui->der2DoubleSpinBox->setEnabled(id == 0 && ui->preEdgeButton->isChecked());
             ui->verticalFit1SpinBox->setEnabled(id == 0 && ui->edgeButton->isChecked());
             ui->verticalFit2SpinBox->setEnabled(id == 0 && ui->preEdgeButton->isChecked());
             ui->edgeButton->setEnabled(id != 2);
-            ui->preEdgeButton->setEnabled(id != 2);
+            ui->preEdgeButton->setEnabled(id != 2 && curr->name.endsWith(".par", Qt::CaseInsensitive));
+            ui->bothButton->setEnabled(id != 2 && curr->name.endsWith(".par", Qt::CaseInsensitive));
         }
         qDebug() << this->metaObject()->className() << ":: signalType::buttonToggled exit";
     });
-    QObject::connect(ui->edgeButton, &QRadioButton::toggled, [=](bool state){
-        qDebug() << this->metaObject()->className() << ":: edgeButton::buttonToggled" << state;
-        if(!state && !ui->preEdgeButton->isChecked()){
-            ui->edgeButton->setChecked(true);
-        }else{
-            Calc* curr = current();
-            if(ui->rawSignalButton->isChecked()){
-                ui->verticalFit1SpinBox->setEnabled(state);
-            }
-            if(curr != nullptr){
-                if(state){
-                    if(ui->preEdgeButton->isChecked()){
-                        curr->files = 2;
-                    }else{
-                        curr->files = 0;
-                    }
-                }else{
-                    curr->files = 1;
-                    curr->series[0]->setVisible(false);
-                }
-                ui->splitGroupBox->setEnabled(curr->files != 2 && ui->rawSignalButton->isChecked());
-                splitSeries->setVisible(false);
-                ui->splitComboBox->setCurrentIndex(0);
-                emitUpdate(curr);
-            }else{
-                qDebug() << "wtf";
-            }
+    QObject::connect(ui->fileGroup, QOverload<int, bool>::of(&QButtonGroup::buttonToggled), [=](int id, bool state){
+        qDebug() << this->metaObject()->className() << ":: fileGroup::buttonToggled" << id << state;
+        Calc* curr = current();
+        switch (id) {
+        case 0:
+            ui->verticalFit1SpinBox->setEnabled(state && ui->rawSignalButton->isChecked());
+            ui->der1DoubleSpinBox->setEnabled(state && ui->rawSignalButton->isChecked());
+            updateSplits(0, -1);
+            break;
+        case 1:
+            ui->verticalFit2SpinBox->setEnabled(state && ui->rawSignalButton->isChecked());
+            ui->der2DoubleSpinBox->setEnabled(state && ui->rawSignalButton->isChecked());
+            updateSplits(1, -1);
+            break;
+        case 2:
+            //
+            break;
+        default:
+            qDebug() << "wtf?";
+            break;
         }
-        qDebug() << this->metaObject()->className() << ":: edgeButton::buttonToggled::exit";
-    });
-    QObject::connect(ui->preEdgeButton, &QRadioButton::toggled, [=](bool state){
-        qDebug() << this->metaObject()->className() << ":: preEdgeButton::buttonToggled" << state;
-        if(!state && !ui->edgeButton->isChecked()){
-            ui->preEdgeButton->setChecked(true);
-        }else{
-            Calc* curr = current();
-            if(ui->rawSignalButton->isChecked()){
-                ui->verticalFit2SpinBox->setEnabled(state);
-            }
-            if(curr != nullptr){
-                if(state){
-                    if(ui->edgeButton->isChecked()){
-                        curr->files = 2;
-                    }else{
-                        curr->files = 1;
-                    }
-                }else{
-                    curr->files = 0;
-                    curr->series[1]->setVisible(false);
-                }
-                ui->splitGroupBox->setEnabled(curr->files != 2 && ui->rawSignalButton->isChecked());
-                splitSeries->setVisible(false);
-                ui->splitComboBox->setCurrentIndex(0);
-                emitUpdate(curr);
-            }else{
-                qDebug() << "wtf";
-            }
+        if(curr != nullptr && state){
+            curr->files = id;
+            curr->series[0]->setVisible(id != 1);
+            curr->series[1]->setVisible(id != 0);
+            emitUpdate(curr);
         }
-        qDebug() << this->metaObject()->className() << ":: preEdgeButton::buttonToggled::exit";
+        ui->splitGroupBox->setEnabled(curr->files != 2 && ui->rawSignalButton->isChecked());
+        qDebug() << this->metaObject()->className() << ":: fileGroup::buttonToggled exit";
     });
     QObject::connect(ui->zeroCheckBox, &QCheckBox::toggled, [=](bool state){
         qDebug() << this->metaObject()->className() << ":: zeroCheckBox::toggled" << state;
@@ -276,42 +243,58 @@ MainWindow::MainWindow(QWidget *parent) :
         }
         qDebug() << this->metaObject()->className() << ":: zeroCheckBox::toggled exit";
     });
-    QObject::connect(ui->derDoubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [=](double val){
-        qDebug() << this->metaObject()->className() << ":: derSpinBox::valueChanged" << val;
+    QObject::connect(ui->der1DoubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [=](double val){
+        qDebug() << this->metaObject()->className() << ":: der1SpinBox::valueChanged" << val;
         Calc* curr = current();
-        if(curr->criticalDer != val){
-            curr->criticalDer = val;
+        if(curr->criticalDer[0] != val){
+            curr->criticalDer[0] = val;
             QObject::connect(this, &MainWindow::setCriticalDer, curr->calc, &Calculator::setCriticalDer, Qt::QueuedConnection);
-            emit setCriticalDer(curr->criticalDer);
+            emit setCriticalDer(0, val);
             QObject::disconnect(this, &MainWindow::setCriticalDer, 0, 0);
         }
-        qDebug() << this->metaObject()->className() << ":: derSpinBox::valueChanged exit";
+        qDebug() << this->metaObject()->className() << ":: der1SpinBox::valueChanged exit";
+    });
+    QObject::connect(ui->der2DoubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [=](double val){
+        qDebug() << this->metaObject()->className() << ":: der2SpinBox::valueChanged" << val;
+        Calc* curr = current();
+        if(curr->criticalDer[1] != val){
+            curr->criticalDer[1] = val;
+            QObject::connect(this, &MainWindow::setCriticalDer, curr->calc, &Calculator::setCriticalDer, Qt::QueuedConnection);
+            emit setCriticalDer(1, val);
+            QObject::disconnect(this, &MainWindow::setCriticalDer, 0, 0);
+        }
+        qDebug() << this->metaObject()->className() << ":: der2SpinBox::valueChanged exit";
     });
     QObject::connect(ui->splitComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), [=](int index){
         qDebug() << this->metaObject()->className() << ":: splitComboBox::indexChanged" << index;
+        splitSeries->setVisible(false);
         splitSeries->clear();
-        if(index != -1 && ui->splitComboBox->currentText().size() > 0){
+        if(index != -1 && ui->splitComboBox->currentText().size() > 0){//overkill?
             Calc* curr = current();
             int file = 0;
             if(ui->preEdgeButton->isChecked()){
                 file = 1;
             }
             int rise = 1;
-            if(ui->splitComboBox->currentData().toInt() < 0){ //check sign!
+            if(ui->splitComboBox->currentData().toInt() < 0){
                 rise = 0;
             }
             int index = qAbs(ui->splitComboBox->currentData().toInt()) - 1;
+            ui->splitLeftSpinBox->setValue(curr->calc->splits[file][rise]->at(index)->l);
+            ui->splitRightSpinBox->setValue(curr->calc->splits[file][rise]->at(index)->r);
+            ui->splitShiftDoubleSpinBox->setValue(curr->calc->splits[file][rise]->at(index)->shift);
             if(curr->calc->splits[file][rise]->at(index)->original->size() > 0){
                 for(int i = 0; i < curr->calc->splits[file][rise]->at(index)->original->size(); ++i){
                     splitSeries->append(curr->calc->splits[file][rise]->at(index)->original->at(i).x(),
                                         curr->calc->splits[file][rise]->at(index)->original->at(i).y() - curr->calc->offsets[file]);
                 }
                 splitSeries->setVisible(true);
+                emitUpdate(curr);
             }
         }
         qDebug() << this->metaObject()->className() << ":: splitComboBox::indexChanged::exit";
     });
-    QObject::connect(ui->splitLeftspinBox, QOverload<int>::of(&QSpinBox::valueChanged), [=](int val){
+    QObject::connect(ui->splitLeftSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), [=](int val){
         qDebug() << this->metaObject()->className() << ":: splitLeftSpinBox::valueChanged" << val;
         if(ui->splitComboBox->currentIndex() != -1 && ui->splitComboBox->currentText().size() > 0){
             Calc* curr = current();
@@ -320,7 +303,7 @@ MainWindow::MainWindow(QWidget *parent) :
                 file = 1;
             }
             int rise = 1;
-            if(ui->splitComboBox->currentData().toInt() < 0){ //check sign!
+            if(ui->splitComboBox->currentData().toInt() < 0){
                 rise = 0;
             }
             int index = qAbs(ui->splitComboBox->currentData().toInt()) - 1;
@@ -335,6 +318,54 @@ MainWindow::MainWindow(QWidget *parent) :
         }
         qDebug() << this->metaObject()->className() << ":: splitLeftSpinBox::valueChanged::exit";
     });
+    QObject::connect(ui->splitRightSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), [=](int val){
+        qDebug() << this->metaObject()->className() << ":: splitRightSpinBox::valueChanged" << val;
+        if(ui->splitComboBox->currentIndex() != -1 && ui->splitComboBox->currentText().size() > 0){
+            Calc* curr = current();
+            int file = 0;
+            if(ui->preEdgeButton->isChecked()){
+                file = 1;
+            }
+            int rise = 1;
+            if(ui->splitComboBox->currentData().toInt() < 0){
+                rise = 0;
+            }
+            int index = qAbs(ui->splitComboBox->currentData().toInt()) - 1;
+            if(curr->calc->splits[file][rise]->at(index)->r != val){
+                curr->calc->mutex->lock();
+                curr->calc->splits[file][rise]->at(index)->r = val;
+                curr->calc->mutex->unlock();
+                QObject::connect(this, &MainWindow::updateSplit, curr->calc, &Calculator::updateSplit, Qt::QueuedConnection);
+                emit updateSplit(file, rise, index);
+                QObject::disconnect(this, &MainWindow::updateSplit, 0, 0);
+            }
+        }
+        qDebug() << this->metaObject()->className() << ":: splitRightSpinBox::valueChanged::exit";
+    });
+    QObject::connect(ui->splitShiftDoubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [=](double val){
+        qDebug() << this->metaObject()->className() << ":: splitShiftDoubleSpinBox::valueChanged" << val;
+        if(ui->splitComboBox->currentIndex() != -1 && ui->splitComboBox->currentText().size() > 0){
+            Calc* curr = current();
+            int file = 0;
+            if(ui->preEdgeButton->isChecked()){
+                file = 1;
+            }
+            int rise = 1;
+            if(ui->splitComboBox->currentData().toInt() < 0){ //check sign!
+                rise = 0;
+            }
+            int index = qAbs(ui->splitComboBox->currentData().toInt()) - 1;
+            if(curr->calc->splits[file][rise]->at(index)->shift != val){
+                curr->calc->mutex->lock();
+                curr->calc->splits[file][rise]->at(index)->shift = val;
+                curr->calc->mutex->unlock();
+                QObject::connect(this, &MainWindow::updateSplit, curr->calc, &Calculator::updateSplit, Qt::QueuedConnection);
+                emit updateSplit(file, rise, index);
+                QObject::disconnect(this, &MainWindow::updateSplit, 0, 0);
+            }
+        }
+        qDebug() << this->metaObject()->className() << ":: splitShiftDoubleSpinBox::valueChanged::exit";
+    });
     QObject::connect(ui->fileTable->selectionModel(), &QItemSelectionModel::selectionChanged, [=]{
         qDebug() << this->metaObject()->className() << ":: selectionChanged";
         foreach(Calc* calc, calculators){
@@ -343,19 +374,39 @@ MainWindow::MainWindow(QWidget *parent) :
         }
         QStringList names;
         if(ui->fileTable->selectionModel()->selectedRows().size() == 0){
-            //make gui inactive
-            //if .csv is selected, make additional restrictions
+            ui->splitGroupBox->setEnabled(false);
+            ui->rawSignalButton->setEnabled(false);
+            ui->zeroSignalButton->setEnabled(false);
+            ui->normSignalButton->setEnabled(false);
+            ui->zeroCheckBox->setEnabled(false);
+            ui->der1DoubleSpinBox->setEnabled(false);
+            ui->der2DoubleSpinBox->setEnabled(false);
+            ui->verticalFit1SpinBox->setEnabled(false);
+            ui->verticalFit2SpinBox->setEnabled(false);
+            ui->smoothDoubleSpinBox->setEnabled(false);
+            ui->loadingSmoothSpinBox->setEnabled(false);
         }else{
-            //activate gui
+            ui->splitGroupBox->setEnabled(true);
+            ui->rawSignalButton->setEnabled(true);
+            ui->zeroSignalButton->setEnabled(true);
+            ui->der1DoubleSpinBox->setEnabled(ui->edgeButton->isChecked());
+            ui->der2DoubleSpinBox->setEnabled(ui->preEdgeButton->isChecked());
+            ui->verticalFit1SpinBox->setEnabled(true);
+            ui->smoothDoubleSpinBox->setEnabled(true);
+            ui->loadingSmoothSpinBox->setEnabled(true);
+            //check strange series
+            Calc* calc;
             foreach (QModelIndex ind, ui->fileTable->selectionModel()->selectedRows()) {
+                ui->splitComboBox->clear();
                 QString name = ui->fileTable->item(ind.row(), 0)->text();
                 names.append(name);
                 if(!calculators.contains(name)){
-                    Calc* calc = new Calc;
+                    calc = new Calc;
                     calculators.insert(name, calc);
                     calc->calc = new Calculator();
                     calc->thread = new QThread();
                     calc->calc->setLoadingSmooth(loadingSmooth);
+                    calc->loadingSmooth = loadingSmooth;
                     calc->calc->moveToThread(calc->thread);
                     calc->name = name;
                     calc->xRange = QPointF(-1.0, 1.0);
@@ -363,13 +414,17 @@ MainWindow::MainWindow(QWidget *parent) :
                     calc->files = 0;
                     calc->zeroNorm = false;
                     calc->criticalDer = criticalDer;
+                    calc->grain = grain;
                     calc->signal = 0;
+                    calc->verticalFit[0] = verticalFit[0];
+                    calc->verticalFit[1] = verticalFit[1];
                     for(int i = 0; i < 2; ++i){
                         calc->series[i] = new QtCharts::QLineSeries(chart);
                         calc->series[i]->setUseOpenGL(true);
                         chart->addSeries(calc->series[i]);
                         calc->series[i]->attachAxis(axisX);
                         calc->series[i]->attachAxis(axisY);
+                        calc->series[i]->setVisible(false);
                     }
                     QObject::connect(calc->calc, SIGNAL(dead()), calc->thread, SLOT(quit()), Qt::QueuedConnection);
                     QObject::connect(calc->thread, SIGNAL(finished()), calc->calc, SLOT(deleteLater()), Qt::QueuedConnection);
@@ -408,30 +463,15 @@ MainWindow::MainWindow(QWidget *parent) :
                         }
                         calc->series[file]->pointsReplaced();
                         calc->series[file]->setVisible(true);
+                        resizeChart();
                         qDebug() << this->metaObject()->className() << ":: ready::exit";
                     }, Qt::QueuedConnection);
                     QObject::connect(calc->calc, &Calculator::updateSplits, this, [=](const int file, const int index){
-                        qDebug() << this->metaObject()->className() << ":: updateSplits" << file << index;
-                        if(index == -1){
-                            ui->splitComboBox->clear();
-                            ui->splitComboBox->addItem("", 0);
-                            Calc* curr = current();
-                            for(int rise = 0; rise < 2; ++rise){
-                                //wtf rise is inverted?
-                                QString prefix = "f";
-                                int sign = -1;
-                                if(rise == 1){
-                                    prefix = "r";
-                                    sign = 1;
-                                }
-                                for(int i = 0; i < curr->calc->splits[file][rise]->size(); ++i){
-                                    ui->splitComboBox->addItem(prefix + QString::number(curr->calc->splits[file][rise]->at(i)->x), sign*(i + 1));
-                                }
-                            }
-                        }else{
-                            ui->splitComboBox->currentIndexChanged(ui->splitComboBox->currentIndex());
+                        qDebug() << this->metaObject()->className() << ":: updateSplitsLambda" << file << index;
+                        if(file == 0 || ui->preEdgeButton->isChecked()){
+                            updateSplits(file, index);
                         }
-                        qDebug() << this->metaObject()->className() << ":: sendSplits::exit";
+                        qDebug() << this->metaObject()->className() << ":: updateSplitsLambda::exit";
                     }, Qt::QueuedConnection);
 
                     calc->calc->setLoader(dataDir, name);
@@ -439,8 +479,63 @@ MainWindow::MainWindow(QWidget *parent) :
                         loadPar(name);
                     }
                 }else{
-                    Calc* curr = current();
-                    emitUpdate(curr);
+                    calc = current();
+                    emitUpdate(calc);
+                    //wtf no update?
+                }
+            }
+            if(calc != nullptr){
+                bool isPar = calc->name.endsWith(".par", Qt::CaseInsensitive);
+                ui->normSignalButton->setEnabled(isPar);
+                ui->edgeButton->setEnabled(isPar);
+                ui->preEdgeButton->setEnabled(isPar);
+                ui->bothButton->setEnabled(isPar);
+                ui->loadingSmoothSpinBox->setValue(calc->loadingSmooth);
+                ui->smoothDoubleSpinBox->setValue(calc->grain);
+                ui->der1DoubleSpinBox->setValue(calc->criticalDer[0]);
+                switch (calc->signal) {
+                case 0:
+                    ui->rawSignalButton->setChecked(true);
+                    break;
+                case 1:
+                    ui->zeroSignalButton->setChecked(true);
+                    break;
+                case 2:
+                    ui->normSignalButton->setChecked(true);
+                    break;
+                default:
+                    ui->zeroSignalButton->setChecked(true);
+                    ui->rawSignalButton->setChecked(true);
+                    qDebug() << "signal = wtf?";
+                    break;
+                }
+                switch (calc->files) {
+                case 0:
+                    ui->edgeButton->setChecked(true);
+                    ui->preEdgeButton->setChecked(false);
+                    updateSplits(0, -1);
+                    break;
+                case 1:
+                    ui->edgeButton->setChecked(false);
+                    ui->preEdgeButton->setChecked(true);
+                    updateSplits(1, -1);
+                    break;
+                case 2:
+                    ui->edgeButton->setChecked(true);
+                    ui->preEdgeButton->setChecked(true);
+                    break;
+                default:
+                    ui->zeroSignalButton->setChecked(true);
+                    ui->rawSignalButton->setChecked(true);
+                    qDebug() << "files = wtf?";
+                    break;
+                }
+                ui->zeroCheckBox->setEnabled(isPar && ui->normSignalButton->isChecked());
+                ui->zeroCheckBox->setChecked(calc->zeroNorm);
+                ui->verticalFit1SpinBox->setValue(calc->verticalFit[0]);
+                if(isPar){
+                    ui->verticalFit2SpinBox->setValue(calc->verticalFit[1]);
+                    ui->der2DoubleSpinBox->setValue(calc->criticalDer[1]);
                 }
             }
             resizeChart();
@@ -533,7 +628,10 @@ void MainWindow::loadSettings(){
         settings->endArray();
         loadingSmooth = settings->value("loadingSmooth", 5).toInt();
         grain = settings->value("grain", 0.5).toDouble();
-        criticalDer = settings->value("criticalDer", 0.015).toDouble();
+        criticalDer[0] = settings->value("criticalDer0", 0.015).toDouble();
+        criticalDer[1] = settings->value("criticalDer1", 0.015).toDouble();
+        verticalFit[0] = settings->value("verticalFit0", 0.0).toDouble();
+        verticalFit[1] = settings->value("verticalFit1", 0.0).toDouble();
     settings->endGroup();
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
 }
@@ -565,13 +663,15 @@ void MainWindow::saveSettings(){
         settings->endArray();
         settings->setValue("loadingSmooth", loadingSmooth);
         settings->setValue("grain", grain);
-        settings->setValue("criticalDer", criticalDer);
+        settings->setValue("criticalDer0", criticalDer[0]);
+        settings->setValue("criticalDer1", criticalDer[1]);
+        settings->setValue("verticalFit0", verticalFit[0]);
+        settings->setValue("verticalFit1", verticalFit[1]);
     settings->endGroup();
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
 }
 
 void MainWindow::buildFileTable(QString d){
-    //somehow breaks table header
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << d;
     Q_UNUSED(d);
     dats.clear();
@@ -599,8 +699,10 @@ void MainWindow::buildFileTable(QString d){
             if(ui->datBox->isChecked()){
                 ui->fileTable->insertRow(tableRow);
                 ui->fileTable->setItem(tableRow, 0, new QTableWidgetItem(model->fileName(childIndex)));
+                ui->fileTable->item(tableRow, 0)->setFlags(ui->fileTable->item(tableRow, 0)->flags() &  ~Qt::ItemIsEditable);
                 ui->fileTable->setItem(tableRow, 5, new QTableWidgetItem(model->fileInfo(childIndex).lastModified().
                                                                           toString("dd.MM.yyyy   HH:mm")));
+                ui->fileTable->item(tableRow, 5)->setFlags(ui->fileTable->item(tableRow, 5)->flags() &  ~Qt::ItemIsEditable);
                 tableRow++;
             }
         }else if(model->fileName(childIndex).endsWith(".PAR", Qt::CaseInsensitive)){
@@ -609,17 +711,23 @@ void MainWindow::buildFileTable(QString d){
             if(ui->parBox->isChecked()){
                 ui->fileTable->insertRow(tableRow);
                 ui->fileTable->setItem(tableRow, 0, new QTableWidgetItem(model->fileName(childIndex)));
+                ui->fileTable->item(tableRow, 0)->setFlags(ui->fileTable->item(tableRow, 0)->flags() &  ~Qt::ItemIsEditable);
                 ui->fileTable->setItem(tableRow, 5, new QTableWidgetItem(model->fileInfo(childIndex).lastModified().
                                                                           toString("dd.MM.yyyy   HH:mm")));
+                ui->fileTable->item(tableRow, 5)->setFlags(ui->fileTable->item(tableRow, 5)->flags() &  ~Qt::ItemIsEditable);
                 par.beginGroup("common");
                     tmp = par.value("sampleName", "unknown").toString();
                     if(tmp == "unknown"){
                         tmp = par.value("sample", "unknown").toString();
                     }
                     ui->fileTable->setItem(tableRow, 1, new QTableWidgetItem(tmp));
+                    ui->fileTable->item(tableRow, 1)->setFlags(ui->fileTable->item(tableRow, 1)->flags() &  ~Qt::ItemIsEditable);
                     ui->fileTable->setItem(tableRow, 3, new QTableWidgetItem(par.value("angle", "unknown").toString()));
+                    ui->fileTable->item(tableRow, 3)->setFlags(ui->fileTable->item(tableRow, 3)->flags() &  ~Qt::ItemIsEditable);
                     ui->fileTable->setItem(tableRow, 4, new QTableWidgetItem(par.value("rating", "unknown").toString()));
+                    ui->fileTable->item(tableRow, 4)->setFlags(ui->fileTable->item(tableRow, 4)->flags() &  ~Qt::ItemIsEditable);
                     ui->fileTable->setItem(tableRow, 6, new QTableWidgetItem(par.value("comment", "").toString()));
+                    ui->fileTable->item(tableRow, 6)->setFlags(ui->fileTable->item(tableRow, 6)->flags() &  ~Qt::ItemIsEditable);
                 par.endGroup();
                 par.beginGroup("file1");
                     tmp = par.value("element", "").toString();
@@ -635,6 +743,7 @@ void MainWindow::buildFileTable(QString d){
                     tmp = "--";
                 }
                 ui->fileTable->setItem(tableRow, 2, new QTableWidgetItem(tmp));
+                ui->fileTable->item(tableRow, 2)->setFlags(ui->fileTable->item(tableRow, 2)->flags() &  ~Qt::ItemIsEditable);
                 tableRow++;
             }
             par.beginGroup("file1");
@@ -652,7 +761,6 @@ void MainWindow::buildFileTable(QString d){
         }else{
         }
     }
-
     ui->fileTable->sortByColumn(0, Qt::AscendingOrder);//add sorting
 
     /*
@@ -842,4 +950,27 @@ void MainWindow::emitUpdate(const Calc* curr){
     emit update(curr->signal, curr->files, curr->zeroNorm);
     QObject::disconnect(this, &MainWindow::update, 0, 0);
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+}
+
+void::MainWindow::updateSplits(const int file, const int index){
+    qDebug() << this->metaObject()->className() << ":: updateSplits" << file << index;
+    if(index == -1){
+        ui->splitComboBox->clear();
+        ui->splitComboBox->addItem("", 0);
+        Calc* curr = current();
+        for(int rise = 0; rise < 2; ++rise){
+            QString prefix = "fall ";
+            int sign = -1;
+            if(rise == 1){
+                prefix = "rise ";
+                sign = 1;
+            }
+            for(int i = 0; i < curr->calc->splits[file][rise]->size(); ++i){
+                ui->splitComboBox->addItem(prefix + QString::number(curr->calc->splits[file][rise]->at(i)->x), sign*(i + 1));
+            }
+        }
+    }else{
+        ui->splitComboBox->currentIndexChanged(ui->splitComboBox->currentIndex());
+    }
+    qDebug() << this->metaObject()->className() << ":: updateSplits::exit";
 }

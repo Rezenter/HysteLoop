@@ -252,9 +252,9 @@ void Calculator::fillGrid(const int file){
             qreal x = gridIndex*grain - 300.0;
             qreal y;
             qreal z;
-            int rise = 0;
+            int rise = 1;
             if(count < qFloor(storage[file].size()/2)){
-                rise = 1;
+                rise = 0;
             }
             int sign = qPow(-1.0, rise + 1.0);
             if(grid[file][rise].at(gridIndex).second.x() == 0.0 && grid[file][rise].at(gridIndex).second.y() == 0.0){
@@ -446,10 +446,10 @@ void Calculator::fillOutput(const int file){
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
 }
 
-void Calculator::setCriticalDer(const qreal val){
+void Calculator::setCriticalDer(const int file, const qreal val){
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << val;
-    if(criticalDer != val){
-        criticalDer = val;
+    if(criticalDer[file] != val){
+        criticalDer[file] = val;
         findSplits(0);
         findSplits(1);
     }
@@ -457,7 +457,7 @@ void Calculator::setCriticalDer(const qreal val){
 }
 
 void Calculator::findSplits(const int file){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file << criticalDer;
+    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file << criticalDer[file];
     if(loaded[file]){
         mutex->lock();
         for(int rise = 0; rise < 2; ++rise){
@@ -471,7 +471,7 @@ void Calculator::findSplits(const int file){
                 QPair<qreal, QPointF> prev = grid[file][rise].at(0);
                 for(int i = 1; i < grid[file][rise].size(); ++i){
                     QPair<qreal, QPointF> point = grid[file][rise].at(i);
-                    if(qAbs((point.second.x() - prev.second.x())/(point.first - prev.first)) > criticalDer){
+                    if(qAbs((point.second.x() - prev.second.x())/(point.first - prev.first)) > criticalDer[file]){
                         splits[file][rise]->append(new Calculator::Split);
                         splits[file][rise]->last()->x = point.first;
                         splits[file][rise]->last()->index = i;
@@ -492,9 +492,17 @@ void Calculator::updateSplit(const int file, const int rise, const int index){
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file << rise << index;
     Split* curr = splits[file][rise]->at(index);
     mutex->lock();
+    int l = qMax(curr->index - curr->oldL, 0);
+    int r = qMin(curr->index + curr->oldR, grid[file][rise].size() - 1);
+    for(int i = l; i <= r; ++i){
+        fixedGrid[file][rise].replace(i, grid[file][rise].at(i));
+    }
+    curr->oldL = curr->l;
+    curr->oldR = curr->r;
+    curr->original->clear();
     std::array<qreal, 3> coeff;
-    int l = qMax(curr->index - curr->l, 0);
-    int r = qMin(curr->index + curr->r, grid[file][rise].size() - 1);
+    l = qMax(curr->index - curr->l, 0);
+    r = qMin(curr->index + curr->r, grid[file][rise].size() - 1);
     QPointF lp = QPointF(grid[file][rise].at(l).first, grid[file][rise].at(l).second.x());
     QPointF rp = QPointF(grid[file][rise].at(r).first, grid[file][rise].at(r).second.x());
     if(curr->index - l != 0 && r - curr->index != 0){
@@ -512,5 +520,42 @@ void Calculator::updateSplit(const int file, const int rise, const int index){
     }
     mutex->unlock();
     emit updateSplits(file, index);
+    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+}
+
+void Calculator::exportSeries(const QString path){
+    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << path;
+    switch (files) {
+    case 0:
+        exportSeries(0, path + "/edge.DAT");
+        break;
+    case 1:
+        exportSeries(1, path + "/preEdge.DAT");
+        break;
+    case 2:
+        exportSeries(0, path + "/edge.DAT");
+        exportSeries(1, path + "/preEdge.DAT");
+        break;
+    default:
+        qDebug() << "wtf";
+        break;
+    }
+    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+}
+
+void Calculator::exportSeries(const int file, const QString path){
+    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file << path;
+    QFile outFile(path);
+    outFile.open(QIODevice::WriteOnly);
+    QTextStream stream(&outFile);
+    stream << QString("%1").arg("Time", -5) << "\t" << QString("%1").arg("Temp.", -5) << "\t" << QString("%1").arg("Magn.Field (Oe)", -20)
+           << "\t" << QString("%1").arg("Moment (arb.units)", -20) << "\r\n";
+    for(int i = 0; i < output[file]->size(); ++i){
+        stream << QString("%1").arg(i, -5) << "\t" << QString("%1").arg(300.0, -5) << "\t" << QString("%1").arg(output[file]->at(i).x() * 10.0, -20)
+               << QString("%1").arg(output[file]->at(i).y(), -20) << "\r\n";
+        emit exportProgress(qFloor(100*i/(output[file]->size() - 1)));
+    }
+    outFile.close();
+    QObject::disconnect(this, &Calculator::exportProgress, 0, 0);
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
 }
