@@ -10,19 +10,20 @@ int Calculator::type = 0;
 int Calculator::files = 0;
 bool Calculator::zeroNorm = false;
 
-Calculator::Calculator(QObject *parent) : QObject(parent){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__;
+Calculator::Calculator(const QString name, QObject *parent) : QObject(parent){
+    qDebug() << this->metaObject()->className()  <<  name <<  "::" << __FUNCTION__;
+    this->name = name;
     mutex = new QMutex(QMutex::Recursive);
     for(int file = 0; file < 2 ; ++file){
         output[file] = new QVector<QPointF>;
         splits[file][0] = new QList<Calculator::Split*>;
         splits[file][1] = new QList<Calculator::Split*>;
     }
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << "exit";
 }
 
 Calculator::~Calculator(){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__;
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__;
     mutex->lock();
     for(int file = 0; file < 2; ++file){
         for(int j = 0; j < storage[file].size(); ++j){
@@ -31,9 +32,9 @@ Calculator::~Calculator(){
         storage[file].clear();
         output[file]->clear();
         delete output[file];
-        grid[file][0].clear();
-        grid[file][1].clear();
         for(int rise = 0; rise < 2; ++rise){
+            grid[file][rise].clear();
+            fixedGrid[file][rise].clear();
             for(int i = 0; i < splits[file][rise]->size(); ++i){
                 splits[file][rise]->at(i)->original->clear();
                 delete splits[file][rise]->at(i)->original;
@@ -45,31 +46,32 @@ Calculator::~Calculator(){
     }
     mutex->unlock();
     delete mutex;
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << "exit";
     emit dead();
+    qDebug() << this->metaObject()->className()  <<  this->name <<  ":: DEAD";
 }
 
 void Calculator::setLoader(const QString loaderPath, const QString filename){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << loaderPath << filename;
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << loaderPath << filename;
     if((path != loaderPath) || (filename != this->filename)){
         path = loaderPath;
         this->filename = filename;
         load();
     }
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << "exit";
 }
 
 void Calculator::setLoadingSmooth(const int count){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << count;
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << count;
     if(count > 0 && loadingSmooth != count){
         loadingSmooth = count;
         load();
     }
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << "exit";
 }
 
 void Calculator::load(){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__;
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__;
     if(filename.size() != 0){
         mutex->lock();
         xRange = QPointF(std::numeric_limits<double>::max(), std::numeric_limits<double>::lowest());
@@ -120,7 +122,7 @@ void Calculator::load(){
                     dataFile.close();
                     delete stream;
                     sensetivity[i] = par.value("sensetivity", 1).toInt();
-                    names.append(filename.chopped(4));
+                    names.append(filename.chopped(3) + "par");
                 par.endGroup();
             }
         }
@@ -128,11 +130,11 @@ void Calculator::load(){
         emit dataPointers(output[0], output[1], names);
         //synchronize with MainWindow and wait for update() signal
     }
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << "exit";
 }
 
 void Calculator::fillTable(const int file, QTextStream *stream){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file;
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << file;
     double xMult = 290.0/0.0393; //emperical value needed in order to fit [-3, +3] mT
     QStringList buffer;
     for(int i = 0; i < 9; ++i){ //bufferisation needed in order to read scale from 8th line
@@ -172,11 +174,11 @@ void Calculator::fillTable(const int file, QTextStream *stream){
     }
     tableFilled[file] = true;
     shuffle(file);
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << "exit";
 }
 
 void Calculator::shuffle(const int file){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file;
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << file;
     if(tableFilled[file]){
         int count = 0;
         int start = qFloor(loadingSmooth);
@@ -208,12 +210,12 @@ void Calculator::shuffle(const int file){
     }else{
         qDebug() << "not filled yet";
     }
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << "exit";
 }
 
 
 void Calculator::setGrain(const qreal val){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << val;
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << val;
     if(val != grain){
         grain = val;
         for(int file = 0; file < 2; ++file){
@@ -223,21 +225,21 @@ void Calculator::setGrain(const qreal val){
         }
         update();
     }
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << "exit";
 }
 
 void Calculator::setVerticalOffset(const int file, const qreal val){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file << val;
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << file << val;
     if(verticalOffset[file] != val){
         verticalOffset[file] = val;
         fillGrid(file);
         update();
     }
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << "exit";
 }
 
 void Calculator::fillGrid(const int file){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file;
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << file;
     if(shuffled[file]){
         xRange = QPointF(std::numeric_limits<double>::max(), std::numeric_limits<double>::lowest());
         yRange[file] = yRange[file];
@@ -281,11 +283,11 @@ void Calculator::fillGrid(const int file){
     }else{
         qDebug() << "not shuffled yet";
     }
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << "exit";
 }
 
 void Calculator::update(const int signal, const int newFiles, const bool newZeroNorm){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << signal << newFiles << newZeroNorm;
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << signal << newFiles << newZeroNorm;
     type = signal;
     files = newFiles;
     zeroNorm = newZeroNorm;
@@ -328,7 +330,7 @@ void Calculator::update(const int signal, const int newFiles, const bool newZero
             emit ready(i);
         }
     }
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << "exit";
 }
 
 void Calculator::checkRange(QPointF point, const int file){
@@ -347,7 +349,7 @@ void Calculator::checkRange(QPointF point, const int file){
 }
 
 void Calculator::fillOutput(const int file){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file;
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << file;
     if(loaded[file]){
         xRange = QPointF(std::numeric_limits<double>::max(), std::numeric_limits<double>::lowest());
         yRange[file] = xRange;
@@ -443,21 +445,21 @@ void Calculator::fillOutput(const int file){
             break;
         }
     }
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << "exit";
 }
 
 void Calculator::setCriticalDer(const int file, const qreal val){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << val;
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << val;
     if(criticalDer[file] != val){
         criticalDer[file] = val;
         findSplits(0);
         findSplits(1);
     }
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << "exit";
 }
 
 void Calculator::findSplits(const int file){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file << criticalDer[file];
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << file << criticalDer[file];
     if(loaded[file]){
         mutex->lock();
         for(int rise = 0; rise < 2; ++rise){
@@ -485,11 +487,11 @@ void Calculator::findSplits(const int file){
         mutex->unlock();
         emit updateSplits(file);
     }
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << "exit";
 }
 
 void Calculator::updateSplit(const int file, const int rise, const int index){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file << rise << index;
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << file << rise << index;
     Split* curr = splits[file][rise]->at(index);
     mutex->lock();
     int l = qMax(curr->index - curr->oldL, 0);
@@ -520,11 +522,28 @@ void Calculator::updateSplit(const int file, const int rise, const int index){
     }
     mutex->unlock();
     emit updateSplits(file, index);
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << "exit";
+}
+
+void Calculator::setSplines(const int file, const int pow, const int length){
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << file << pow << length;
+    bool flag = false;
+    if(frame[file] != length){
+        frame[file] = length;
+        flag = true;
+    }
+    if(power[file] != pow){
+        power[file] = pow;
+        flag = true;
+    }
+    if(flag){
+        update();
+    }
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << "exit";
 }
 
 void Calculator::exportSeries(const QString path){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << path;
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << path;
     switch (files) {
     case 0:
         exportSeries(0, path + "/edge.DAT");
@@ -540,11 +559,11 @@ void Calculator::exportSeries(const QString path){
         qDebug() << "wtf";
         break;
     }
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << "exit";
 }
 
 void Calculator::exportSeries(const int file, const QString path){
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << file << path;
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << file << path;
     QFile outFile(path);
     outFile.open(QIODevice::WriteOnly);
     QTextStream stream(&outFile);
@@ -556,6 +575,26 @@ void Calculator::exportSeries(const int file, const QString path){
         emit exportProgress(qFloor(100*i/(output[file]->size() - 1)));
     }
     outFile.close();
+    if(name.endsWith(".par", Qt::CaseInsensitive)){
+        QSettings oldPar(this->path + "/" + filename, QSettings::IniFormat);
+        QSettings newPar(path + ".par", QSettings::IniFormat);
+        QString sampleName;
+        newPar.beginGroup("settings");
+            oldPar.beginGroup("common");
+                sampleName += oldPar.value("sample", "").toString();
+                newPar.setValue("comment", oldPar.value("comment", "").toString());
+                newPar.setValue("rating", oldPar.value("rating", "").toString());
+                newPar.setValue("chi", oldPar.value("angle", "").toString()); //CHECK!!!
+            oldPar.endGroup();
+            oldPar.beginGroup("file1");
+                sampleName += "_" + oldPar.value("element", "").toString();
+            oldPar.endGroup();
+            newPar.setValue("sampleName", sampleName);
+            newPar.setValue("corrDerivative", "0");
+            newPar.setValue("area", "1");
+            newPar.setValue("thickness", "1");
+        newPar.endGroup();
+    }
     QObject::disconnect(this, &Calculator::exportProgress, 0, 0);
-    qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << "exit";
+    qDebug() << this->metaObject()->className()  <<  this->name <<  "::" << __FUNCTION__ << "exit";
 }

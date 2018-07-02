@@ -21,3 +21,5 @@ HEADERS  += mainwindow.h \
     calculator.h
 
 FORMS    += mainwindow.ui
+
+INCLUDEPATH += $$PWD/include/

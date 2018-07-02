@@ -19,9 +19,9 @@
 #include <QMessageBox>
 #include <QThread>
 
-#include "calculator.h"
-
 #include <QDebug>
+
+#include "calculator.h"
 
 namespace Ui {
 class MainWindow;
@@ -48,12 +48,12 @@ private:
     Ui::MainWindow* ui;
     struct Calc{
         QString name;
-        QThread* thread;
-        Calculator* calc;
+        QThread* thread; //!!
+        Calculator* calc;//
         QPointF xRange;
         QPointF yRange;
-        std::array<QtCharts::QLineSeries*, 2> series;
-        std::array<QVector<QPointF>*, 2> data;
+        std::array<QtCharts::QLineSeries*, 2> series;//!!
+        std::array<QVector<QPointF>*, 2> data;//dont delete, memory is controlled by calc
         qreal grain;
         int signal;
         int files;
@@ -63,41 +63,36 @@ private:
         std::array<bool, 2> visability;
         std::array<qreal, 2> criticalDer;
     };
+    int sortingIndex = 0;
+    bool ascending = true;
     void loadSettings();
     void saveSettings();
     void resizeChart();
-    QtCharts::QChartView* chartView;
-    QtCharts::QChart* chart;
-    QtCharts::QValueAxis* axisX;
-    QtCharts::QValueAxis* axisY;
-    QString path = QCoreApplication::applicationDirPath();
-    QFile* save;
-    QTextStream* stream;
-    QSettings* settings;
-    QFileSystemModel* model = new QFileSystemModel(this);
-    QString drive;
-    QModelIndex currentSelection;
+    QtCharts::QChartView* chartView;//
+    QtCharts::QChart* chart;        //
+    QtCharts::QValueAxis* axisX;    //
+    QtCharts::QValueAxis* axisY;    //
+    QSettings* settings;    //
+    QFileSystemModel* model = new QFileSystemModel(this);   //
     QString dataDir;
-    QFileSystemWatcher* refresh = new QFileSystemWatcher();
+    QFileSystemWatcher* refresh = new QFileSystemWatcher(); //
     QHash<QString, QString> params;
-    QModelIndex tmpInd;
-    QDialog* param = new QDialog(this);
     void writeParam(QString);
     QStringList elements;
     QStringList dats;
-    QtCharts::QLineSeries* xZeroSer;
-    QtCharts::QLineSeries* yZeroSer;
-    QtCharts::QLineSeries* splitSeries;
+    QtCharts::QLineSeries* xZeroSer;    //
+    QtCharts::QLineSeries* yZeroSer;    //
+    QtCharts::QLineSeries* splitSeries; //
     void loadPar(QString name);
     QString loaded = "";
-    QList<QPointF> dots;
     int loadingSmooth = 5;
-    QHash<QString, Calc*> calculators;
+    QHash<QString, Calc*> calculators;  // !!
     qreal grain = 0.5;
     Calc* current();
     void emitUpdate(const Calc* curr);
     std::array<qreal, 2> criticalDer{{0.015, 0.015}};
     std::array<qreal, 2> verticalFit{{0.0, 0.0}};
+    bool fileTableBusy = true;
 
 private slots:
     void buildFileTable(QString);
