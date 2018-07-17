@@ -357,13 +357,17 @@ void Calculator::fillOutput(const int file){
         output[file]->clear();
         switch (type) {
         case 0:
-            for(int i = fixedGrid[file][0].size() - 1; i >= 0 ; --i){
-                output[file]->append(QPointF(fixedGrid[file][0].at(i).first, fixedGrid[file][0].at(i).second.x()));
-                checkRange(output[file]->last(), file);
-            }
-            for(int i = 0; i < fixedGrid[file][1].size(); ++i){
-                output[file]->append(QPointF(fixedGrid[file][1].at(i).first, fixedGrid[file][1].at(i).second.x()));
-                checkRange(output[file]->last(), file);
+            {
+                for(int i = fixedGrid[file][0].size() - 1; i >= 0 ; --i){
+                    output[file]->append(QPointF(fixedGrid[file][0].at(i).first, fixedGrid[file][0].at(i).second.x()));
+                    checkRange(output[file]->last(), file);
+                }
+                //filter here
+
+                for(int i = 0; i < fixedGrid[file][1].size(); ++i){
+                    output[file]->append(QPointF(fixedGrid[file][1].at(i).first, fixedGrid[file][1].at(i).second.x()));
+                    checkRange(output[file]->last(), file);
+                }
             }
             break;
         case 1:
@@ -584,7 +588,7 @@ void Calculator::exportSeries(const int file, const QString path){
                 sampleName += oldPar.value("sample", "").toString();
                 newPar.setValue("comment", oldPar.value("comment", "").toString());
                 newPar.setValue("rating", oldPar.value("rating", "").toString());
-                newPar.setValue("chi", oldPar.value("angle", "").toString()); //CHECK!!!
+                newPar.setValue("chi", oldPar.value("angle", "").toString()); //CHECK!!! deg or rad
             oldPar.endGroup();
             oldPar.beginGroup("file1");
                 sampleName += "_" + oldPar.value("element", "").toString();

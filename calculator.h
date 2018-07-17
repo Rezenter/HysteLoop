@@ -8,9 +8,6 @@
 #include <QTextStream>
 #include <QVector>
 
-#include "include/savgol.h" //Frame size F should ideally be odd and must be greater than polynomial order K
-#include "Eigen/Core"
-
 class Calculator : public QObject{
 
     Q_OBJECT

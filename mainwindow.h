@@ -43,6 +43,8 @@ signals:
     void setCriticalDer(const int file, const qreal val);
     void updateSplit(const int file, const int rise, const int index);
     void exportSeries(const QString path);
+    void setSplines(const int file, const int pow, const int length);
+    void setVerticalOffset(const int file, const qreal val);
 
 private:
     Ui::MainWindow* ui;
@@ -62,6 +64,8 @@ private:
         bool zeroNorm;
         std::array<bool, 2> visability;
         std::array<qreal, 2> criticalDer;
+        std::array<int, 2> frame{{7, 7}};
+        std::array<int, 2> power{{5, 5}};
     };
     int sortingIndex = 0;
     bool ascending = true;

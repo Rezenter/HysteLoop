@@ -8,7 +8,8 @@
  * filter:
  *      Savitzky–Golay filter
  * store fitParams in .PAR
- *
+ *      store splits
+ * add tooltips
  *
  * default export name//meh
  * highlight default values in param panel
@@ -131,30 +132,110 @@ MainWindow::MainWindow(QWidget *parent) :
     });
     QObject::connect(model, &QFileSystemModel::directoryLoaded, this, &MainWindow::buildFileTable);
     QObject::connect(refresh, &QFileSystemWatcher::directoryChanged, this, &MainWindow::load);
+    QObject::connect(ui->splinePowerSpinBox1, QOverload<int>::of(&QSpinBox::valueChanged), [=](int val){
+        qDebug() << this->metaObject()->className() << ":: splinePowerSpinBox1 :: valueChanged" << val;
+        if(ui->splineLengthSpinBox1->value() <= val){
+            ui->splinePowerSpinBox1->setValue(ui->splineLengthSpinBox1->value() - 1);
+        }else{
+            Calc* curr = current();
+            if(curr != nullptr){
+                curr->power[0] = val;
+                QObject::connect(this, &MainWindow::setSplines, curr->calc, &Calculator::setSplines, Qt::QueuedConnection);
+                emit setSplines(0, val, curr->frame[0]);
+                QObject::disconnect(this, &MainWindow::setSplines, 0, 0);
+            }else{
+                qDebug() << "wtf";
+            }
+        }
+        qDebug() << this->metaObject()->className() << ":: splinePowerSpinBox1 :: valueChanged" << val;
+    });
+    QObject::connect(ui->splinePowerSpinBox2, QOverload<int>::of(&QSpinBox::valueChanged), [=](int val){
+        qDebug() << this->metaObject()->className() << ":: splinePowerSpinBox2 :: valueChanged" << val;
+        if(ui->splineLengthSpinBox2->value() <= val){
+            ui->splinePowerSpinBox2->setValue(ui->splineLengthSpinBox2->value() - 1);
+        }else{
+            Calc* curr = current();
+            if(curr != nullptr){
+                curr->power[1] = val;
+                QObject::connect(this, &MainWindow::setSplines, curr->calc, &Calculator::setSplines, Qt::QueuedConnection);
+                emit setSplines(1, val, curr->frame[1]);
+                QObject::disconnect(this, &MainWindow::setSplines, 0, 0);
+            }else{
+                qDebug() << "wtf";
+            }
+        }
+        qDebug() << this->metaObject()->className() << ":: splinePowerSpinBox2 :: valueChanged" << val;
+    });
+    QObject::connect(ui->splineLengthSpinBox1, QOverload<int>::of(&QSpinBox::valueChanged), [=](int val){
+        qDebug() << this->metaObject()->className() << ":: splineLengthSpinBox1 :: valueChanged" << val;
+        if(val % 2 == 0){
+            ui->splineLengthSpinBox1->setValue(val + 1);
+        }else{
+            if(ui->splinePowerSpinBox1->value() >= val){
+                ui->splineLengthSpinBox1->setValue(ui->splinePowerSpinBox1->value() + 1);
+            }else{
+                Calc* curr = current();
+                if(curr != nullptr){
+                    curr->frame[0] = val;
+                    QObject::connect(this, &MainWindow::setSplines, curr->calc, &Calculator::setSplines, Qt::QueuedConnection);
+                    emit setSplines(0, curr->power[0], val);
+                    QObject::disconnect(this, &MainWindow::setSplines, 0, 0);
+                }else{
+                    qDebug() << "wtf";
+                }
+            }
+        }
+        qDebug() << this->metaObject()->className() << ":: splineLengthSpinBox1 :: valueChanged" << val;
+    });
+    QObject::connect(ui->splineLengthSpinBox2, QOverload<int>::of(&QSpinBox::valueChanged), [=](int val){
+        qDebug() << this->metaObject()->className() << ":: splineLengthSpinBox2 :: valueChanged" << val;
+        if(val % 2 == 0){
+            ui->splineLengthSpinBox2->setValue(val + 1);
+        }else{
+            if(ui->splinePowerSpinBox2->value() >= val){
+                ui->splineLengthSpinBox2->setValue(ui->splinePowerSpinBox2->value() + 1);
+            }else{
+                Calc* curr = current();
+                if(curr != nullptr){
+                    curr->frame[1] = val;
+                    QObject::connect(this, &MainWindow::setSplines, curr->calc, &Calculator::setSplines, Qt::QueuedConnection);
+                    emit setSplines(1, curr->power[1], val);
+                    QObject::disconnect(this, &MainWindow::setSplines, 0, 0);
+                }else{
+                    qDebug() << "wtf";
+                }
+            }
+        }
+        qDebug() << this->metaObject()->className() << ":: splineLengthSpinBox2 :: valueChanged" << val;
+    });
     QObject::connect(ui->verticalFit1SpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [=](qreal val){
-        qDebug() << this->metaObject()->className() << ":: verticalFitSpinBox::valueChanged" << val;
+        qDebug() << this->metaObject()->className() << ":: verticalFitSpinBox :: valueChanged" << val;
         Calc* curr = current();
         if(curr != nullptr){
-            curr->calc->setVerticalOffset(0, val);
             curr->verticalFit[0] = val;
+            QObject::connect(this, &MainWindow::setVerticalOffset, curr->calc, &Calculator::setVerticalOffset, Qt::QueuedConnection);
+            emit setVerticalOffset(0, val);
+            QObject::disconnect(this, &MainWindow::setSplines, 0, 0);
         }else{
             qDebug() << "wtf";
         }
-        qDebug() << this->metaObject()->className() << ":: verticalFitSpinBox::valueChanged :: exit";
+        qDebug() << this->metaObject()->className() << ":: verticalFitSpinBox :: valueChanged :: exit";
     });
     QObject::connect(ui->verticalFit2SpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [=](qreal val){
-        qDebug() << this->metaObject()->className() << ":: verticalFitSpinBox::valueChanged" << val;
+        qDebug() << this->metaObject()->className() << ":: verticalFitSpinBox :: valueChanged" << val;
         Calc* curr = current();
         if(curr != nullptr){
-            curr->calc->setVerticalOffset(1, val);
             curr->verticalFit[1] = val;
+            QObject::connect(this, &MainWindow::setVerticalOffset, curr->calc, &Calculator::setVerticalOffset, Qt::QueuedConnection);
+            emit setVerticalOffset(1, val);
+            QObject::disconnect(this, &MainWindow::setSplines, 0, 0);
         }else{
             qDebug() << "wtf";
         }
-        qDebug() << this->metaObject()->className() << ":: verticalFitSpinBox::valueChanged::exit";
+        qDebug() << this->metaObject()->className() << ":: verticalFitSpinBox :: valueChanged::exit";
     });
     QObject::connect(ui->smoothDoubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [=](qreal val){
-        qDebug() << this->metaObject()->className() << ":: smoothDoubleSpinBox::valueChanged" << val;
+        qDebug() << this->metaObject()->className() << ":: smoothDoubleSpinBox :: valueChanged" << val;
         Calc* curr = current();
         if(curr != nullptr){
             curr->grain = val;
@@ -164,10 +245,10 @@ MainWindow::MainWindow(QWidget *parent) :
         }else{
             qDebug() << "wtf";
         }
-        qDebug() << this->metaObject()->className() << ":: smoothDoubleSpinBox::valueChanged::exit";
+        qDebug() << this->metaObject()->className() << ":: smoothDoubleSpinBox :: valueChanged::exit";
     });
     QObject::connect(ui->loadingSmoothSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), [=](int val){
-        qDebug() << this->metaObject()->className() << ":: smoothDoubleSpinBox::valueChanged" << val;
+        qDebug() << this->metaObject()->className() << ":: smoothDoubleSpinBox :: valueChanged" << val;
         Calc* curr = current();
         if(curr != nullptr){
             curr->loadingSmooth = val;
@@ -177,10 +258,10 @@ MainWindow::MainWindow(QWidget *parent) :
         }else{
             qDebug() << "wtf";
         }
-        qDebug() << this->metaObject()->className() << ":: smoothDoubleSpinBox::valueChanged::exit";
+        qDebug() << this->metaObject()->className() << ":: smoothDoubleSpinBox :: valueChanged::exit";
     });
     QObject::connect(ui->signalType, QOverload<int, bool>::of(&QButtonGroup::buttonToggled), [=](int id, bool state){
-        qDebug() << this->metaObject()->className() << ":: signalType::buttonToggled" << id << state;
+        qDebug() << this->metaObject()->className() << ":: signalType :: buttonToggled" << id << state;
         if(state){
             Calc* curr = current();
             if(curr != nullptr){
@@ -204,24 +285,33 @@ MainWindow::MainWindow(QWidget *parent) :
             ui->der2DoubleSpinBox->setEnabled(id == 0 && ui->preEdgeButton->isChecked());
             ui->verticalFit1SpinBox->setEnabled(id == 0 && ui->edgeButton->isChecked());
             ui->verticalFit2SpinBox->setEnabled(id == 0 && ui->preEdgeButton->isChecked());
+            ui->splineLengthSpinBox1->setEnabled(id == 0 && ui->edgeButton->isChecked());
+            ui->splineLengthSpinBox2->setEnabled(id == 0 && ui->preEdgeButton->isChecked());
+            ui->splinePowerSpinBox1->setEnabled(id == 0 && ui->edgeButton->isChecked());
+            ui->splinePowerSpinBox2->setEnabled(id == 0 && ui->preEdgeButton->isChecked());
             ui->edgeButton->setEnabled(id != 2);
             ui->preEdgeButton->setEnabled(id != 2 && curr->name.endsWith(".par", Qt::CaseInsensitive));
             ui->bothButton->setEnabled(id != 2 && curr->name.endsWith(".par", Qt::CaseInsensitive));
         }
-        qDebug() << this->metaObject()->className() << ":: signalType::buttonToggled exit";
+        qDebug() << this->metaObject()->className() << ":: signalType :: buttonToggled exit";
     });
     QObject::connect(ui->fileGroup, QOverload<int, bool>::of(&QButtonGroup::buttonToggled), [=](int id, bool state){
-        qDebug() << this->metaObject()->className() << ":: fileGroup::buttonToggled" << id << state;
+        qDebug() << this->metaObject()->className() << ":: fileGroup :: buttonToggled" << id << state;
         Calc* curr = current();
+        bool checked = state && ui->rawSignalButton->isChecked();
         switch (id) {
         case 0:
-            ui->verticalFit1SpinBox->setEnabled(state && ui->rawSignalButton->isChecked());
-            ui->der1DoubleSpinBox->setEnabled(state && ui->rawSignalButton->isChecked());
+            ui->verticalFit1SpinBox->setEnabled(checked);
+            ui->splineLengthSpinBox1->setEnabled(checked);
+            ui->splinePowerSpinBox1->setEnabled(checked);
+            ui->der1DoubleSpinBox->setEnabled(checked);
             updateSplits(0, -1);
             break;
         case 1:
-            ui->verticalFit2SpinBox->setEnabled(state && ui->rawSignalButton->isChecked());
-            ui->der2DoubleSpinBox->setEnabled(state && ui->rawSignalButton->isChecked());
+            ui->verticalFit2SpinBox->setEnabled(checked);
+            ui->splineLengthSpinBox2->setEnabled(checked);
+            ui->splinePowerSpinBox2->setEnabled(checked);
+            ui->der2DoubleSpinBox->setEnabled(checked);
             updateSplits(1, -1);
             break;
         case 2:
@@ -238,19 +328,19 @@ MainWindow::MainWindow(QWidget *parent) :
             emitUpdate(curr);
         }
         ui->splitGroupBox->setEnabled(curr->files != 2 && ui->rawSignalButton->isChecked());
-        qDebug() << this->metaObject()->className() << ":: fileGroup::buttonToggled exit";
+        qDebug() << this->metaObject()->className() << ":: fileGroup :: buttonToggled exit";
     });
     QObject::connect(ui->zeroCheckBox, &QCheckBox::toggled, [=](bool state){
-        qDebug() << this->metaObject()->className() << ":: zeroCheckBox::toggled" << state;
+        qDebug() << this->metaObject()->className() << ":: zeroCheckBox :: toggled" << state;
         Calc* curr = current();
         if(curr->zeroNorm != state){
             curr->zeroNorm = state;
             emitUpdate(curr);
         }
-        qDebug() << this->metaObject()->className() << ":: zeroCheckBox::toggled exit";
+        qDebug() << this->metaObject()->className() << ":: zeroCheckBox :: toggled exit";
     });
     QObject::connect(ui->der1DoubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [=](double val){
-        qDebug() << this->metaObject()->className() << ":: der1SpinBox::valueChanged" << val;
+        qDebug() << this->metaObject()->className() << ":: der1SpinBox :: valueChanged" << val;
         Calc* curr = current();
         if(curr->criticalDer[0] != val){
             curr->criticalDer[0] = val;
@@ -258,10 +348,10 @@ MainWindow::MainWindow(QWidget *parent) :
             emit setCriticalDer(0, val);
             QObject::disconnect(this, &MainWindow::setCriticalDer, 0, 0);
         }
-        qDebug() << this->metaObject()->className() << ":: der1SpinBox::valueChanged exit";
+        qDebug() << this->metaObject()->className() << ":: der1SpinBox :: valueChanged exit";
     });
     QObject::connect(ui->der2DoubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [=](double val){
-        qDebug() << this->metaObject()->className() << ":: der2SpinBox::valueChanged" << val;
+        qDebug() << this->metaObject()->className() << ":: der2SpinBox :: valueChanged" << val;
         Calc* curr = current();
         if(curr->criticalDer[1] != val){
             curr->criticalDer[1] = val;
@@ -269,10 +359,10 @@ MainWindow::MainWindow(QWidget *parent) :
             emit setCriticalDer(1, val);
             QObject::disconnect(this, &MainWindow::setCriticalDer, 0, 0);
         }
-        qDebug() << this->metaObject()->className() << ":: der2SpinBox::valueChanged exit";
+        qDebug() << this->metaObject()->className() << ":: der2SpinBox :: valueChanged exit";
     });
     QObject::connect(ui->splitComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), [=](int index){
-        qDebug() << this->metaObject()->className() << ":: splitComboBox::indexChanged" << index;
+        qDebug() << this->metaObject()->className() << ":: splitComboBox :: indexChanged" << index;
         splitSeries->setVisible(false);
         splitSeries->clear();
         if(index != -1 && ui->splitComboBox->currentText().size() > 0){//overkill?
@@ -298,10 +388,10 @@ MainWindow::MainWindow(QWidget *parent) :
                 emitUpdate(curr);
             }
         }
-        qDebug() << this->metaObject()->className() << ":: splitComboBox::indexChanged::exit";
+        qDebug() << this->metaObject()->className() << ":: splitComboBox :: indexChanged::exit";
     });
     QObject::connect(ui->splitLeftSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), [=](int val){
-        qDebug() << this->metaObject()->className() << ":: splitLeftSpinBox::valueChanged" << val;
+        qDebug() << this->metaObject()->className() << ":: splitLeftSpinBox :: valueChanged" << val;
         if(ui->splitComboBox->currentIndex() != -1 && ui->splitComboBox->currentText().size() > 0){
             Calc* curr = current();
             int file = 0;
@@ -322,10 +412,10 @@ MainWindow::MainWindow(QWidget *parent) :
                 QObject::disconnect(this, &MainWindow::updateSplit, 0, 0);
             }
         }
-        qDebug() << this->metaObject()->className() << ":: splitLeftSpinBox::valueChanged::exit";
+        qDebug() << this->metaObject()->className() << ":: splitLeftSpinBox :: valueChanged::exit";
     });
     QObject::connect(ui->splitRightSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), [=](int val){
-        qDebug() << this->metaObject()->className() << ":: splitRightSpinBox::valueChanged" << val;
+        qDebug() << this->metaObject()->className() << ":: splitRightSpinBox :: valueChanged" << val;
         if(ui->splitComboBox->currentIndex() != -1 && ui->splitComboBox->currentText().size() > 0){
             Calc* curr = current();
             int file = 0;
@@ -346,10 +436,10 @@ MainWindow::MainWindow(QWidget *parent) :
                 QObject::disconnect(this, &MainWindow::updateSplit, 0, 0);
             }
         }
-        qDebug() << this->metaObject()->className() << ":: splitRightSpinBox::valueChanged::exit";
+        qDebug() << this->metaObject()->className() << ":: splitRightSpinBox :: valueChanged::exit";
     });
     QObject::connect(ui->splitShiftDoubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [=](double val){
-        qDebug() << this->metaObject()->className() << ":: splitShiftDoubleSpinBox::valueChanged" << val;
+        qDebug() << this->metaObject()->className() << ":: splitShiftDoubleSpinBox :: valueChanged" << val;
         if(ui->splitComboBox->currentIndex() != -1 && ui->splitComboBox->currentText().size() > 0){
             Calc* curr = current();
             int file = 0;
@@ -370,7 +460,7 @@ MainWindow::MainWindow(QWidget *parent) :
                 QObject::disconnect(this, &MainWindow::updateSplit, 0, 0);
             }
         }
-        qDebug() << this->metaObject()->className() << ":: splitShiftDoubleSpinBox::valueChanged::exit";
+        qDebug() << this->metaObject()->className() << ":: splitShiftDoubleSpinBox :: valueChanged::exit";
     });
     QObject::connect(ui->fileTable->selectionModel(), &QItemSelectionModel::selectionChanged, [=]{
         qDebug() << this->metaObject()->className() << ":: selectionChanged";
@@ -389,6 +479,10 @@ MainWindow::MainWindow(QWidget *parent) :
                 ui->der2DoubleSpinBox->setEnabled(false);
                 ui->verticalFit1SpinBox->setEnabled(false);
                 ui->verticalFit2SpinBox->setEnabled(false);
+                ui->splineLengthSpinBox1->setEnabled(false);
+                ui->splineLengthSpinBox2->setEnabled(false);
+                ui->splinePowerSpinBox1->setEnabled(false);
+                ui->splinePowerSpinBox2->setEnabled(false);
                 ui->smoothDoubleSpinBox->setEnabled(false);
                 ui->loadingSmoothSpinBox->setEnabled(false);
             }else{
@@ -398,6 +492,8 @@ MainWindow::MainWindow(QWidget *parent) :
                 ui->der1DoubleSpinBox->setEnabled(ui->edgeButton->isChecked());
                 ui->der2DoubleSpinBox->setEnabled(ui->preEdgeButton->isChecked());
                 ui->verticalFit1SpinBox->setEnabled(true);
+                ui->splineLengthSpinBox1->setEnabled(true);
+                ui->splinePowerSpinBox1->setEnabled(true);
                 ui->smoothDoubleSpinBox->setEnabled(true);
                 ui->loadingSmoothSpinBox->setEnabled(true);
                 Calc* calc;
@@ -532,8 +628,12 @@ MainWindow::MainWindow(QWidget *parent) :
                     ui->zeroCheckBox->setEnabled(isPar && ui->normSignalButton->isChecked());
                     ui->zeroCheckBox->setChecked(calc->zeroNorm);
                     ui->verticalFit1SpinBox->setValue(calc->verticalFit[0]);
+                    ui->splineLengthSpinBox1->setValue(calc->frame[0]);
+                    ui->splinePowerSpinBox1->setValue(calc->power[0]);
                     if(isPar){
                         ui->verticalFit2SpinBox->setValue(calc->verticalFit[1]);
+                        ui->splineLengthSpinBox2->setValue(calc->frame[1]);
+                        ui->splinePowerSpinBox2->setValue(calc->power[1]);
                         ui->der2DoubleSpinBox->setValue(calc->criticalDer[1]);
                     }
                 }
@@ -543,22 +643,22 @@ MainWindow::MainWindow(QWidget *parent) :
         qDebug() << this->metaObject()->className() << ":: selectionChanged::exit";
     });
     QObject::connect(ui->datBox, &QCheckBox::toggled, [=](bool state){
-        qDebug() << this->metaObject()->className() << ":: datBox::toggled" << state;
+        qDebug() << this->metaObject()->className() << ":: datBox :: toggled" << state;
         if(!state && !ui->parBox->isChecked()){
             ui->datBox->setChecked(true);
         }else{
             buildFileTable(dataDir);
         }
-        qDebug() << this->metaObject()->className() << ":: datBox::toggled::exit";
+        qDebug() << this->metaObject()->className() << ":: datBox :: toggled::exit";
     });
     QObject::connect(ui->parBox, &QCheckBox::toggled, [=](bool state){
-        qDebug() << this->metaObject()->className() << ":: parBox::toggled" << state;
+        qDebug() << this->metaObject()->className() << ":: parBox :: toggled" << state;
         if(!state && !ui->datBox->isChecked()){
             ui->parBox->setChecked(true);
         }else{
             buildFileTable(dataDir);
         }
-        qDebug() << this->metaObject()->className() << ":: parBox::toggled::exit";
+        qDebug() << this->metaObject()->className() << ":: parBox :: toggled::exit";
     });
     loadSettings();
     ui->element1Box->addItems(elements);
@@ -874,14 +974,16 @@ void MainWindow::load(QString p){
 void MainWindow::writeParam(QString name){
     qDebug() << this->metaObject()->className() <<  "::" << __FUNCTION__ << name;
     QSettings par(dataDir + "/" + name + ".PAR", QSettings::IniFormat);
+        //----------------------------------------------------------------------------------------------
+    Calc* curr = current();
     par.beginGroup("common");
         par.setValue("sample", ui->sampleEdit->text());
         par.setValue("angle", ui->angleSpinBox->value());
         par.setValue("amplitude", ui->ampEdit->text());
         par.setValue("rating", ui->ratingEdit->text());
         par.setValue("comment", ui->commentEdit->toPlainText());
-        //par.setValue("shift", ui->verticalFitSpinBox->value());
-        //par.setValue("smooth", ui->smoothSpinBox->value());
+        par.setValue("loadingSmooth", curr->loadingSmooth);
+        par.setValue("grain", curr->grain);
         par.setValue("corrDerivative", 0);
         par.setValue("area", 1);
         par.setValue("thickness", 1);
@@ -892,6 +994,14 @@ void MainWindow::writeParam(QString name){
         par.setValue("energy", ui->energy1Edit->text());
         par.setValue("rating", ui->rating1Edit->text());
         par.setValue("sensetivity", ui->sens1Box->value());
+
+        par.setValue("verticalFit", curr->verticalFit[0]);
+        par.setValue("filterFrame", curr->frame[0]);
+        par.setValue("filterPower", curr->power[0]);
+        par.setValue("derivative", curr->criticalDer[0]);
+        par.beginGroup("splits");
+
+        par.endGroup();
     par.endGroup();
     par.beginGroup("file2");
         par.setValue("filename", ui->file2Box->currentText());

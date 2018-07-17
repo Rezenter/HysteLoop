@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1235</width>
+    <width>1268</width>
     <height>659</height>
    </rect>
   </property>
@@ -385,12 +385,18 @@ p, li { white-space: pre-wrap; }
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
+      <property name="toolTip">
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Split correction area. Data points around selected split point are replaced by parabola, which connects leftmost point, point wit&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      </property>
       <property name="title">
        <string>split corretion</string>
       </property>
       <layout class="QGridLayout" name="gridLayout_6">
        <item row="1" column="0">
         <widget class="QSpinBox" name="splitLeftSpinBox">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Set number of leftmost points before the split point, which will be corrected.&lt;/p&gt;&lt;p&gt;Selecting 0 will deactivates current split correction.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
          <property name="suffix">
           <string> pts</string>
          </property>
@@ -410,6 +416,9 @@ p, li { white-space: pre-wrap; }
        </item>
        <item row="1" column="1">
         <widget class="QSpinBox" name="splitRightSpinBox">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Set number of rightmost points before the split point, which will be corrected.&lt;/p&gt;&lt;p&gt;Selecting 0 will deactivates current split correction.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
          <property name="suffix">
           <string> pts</string>
          </property>
@@ -429,6 +438,9 @@ p, li { white-space: pre-wrap; }
        </item>
        <item row="0" column="0">
         <widget class="QComboBox" name="splitComboBox">
+         <property name="toolTip">
+          <string>Select current split from the list of suspicious points.</string>
+         </property>
          <property name="currentIndex">
           <number>-1</number>
          </property>
@@ -436,6 +448,9 @@ p, li { white-space: pre-wrap; }
        </item>
        <item row="0" column="1">
         <widget class="QDoubleSpinBox" name="splitShiftDoubleSpinBox">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Set curvature of parabola.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
          <property name="prefix">
           <string>Curv. </string>
          </property>
@@ -495,6 +510,9 @@ p, li { white-space: pre-wrap; }
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
+      <property name="toolTip">
+       <string>Show raw TEY signal, measured at edge of absorbtion, and divided by TEY signal, measured at pre-edge of absorbtion.</string>
+      </property>
       <property name="text">
        <string>normalized on preEdge</string>
       </property>
@@ -515,7 +533,7 @@ p, li { white-space: pre-wrap; }
        <string>pow. </string>
       </property>
       <property name="maximum">
-       <number>5</number>
+       <number>98</number>
       </property>
       <property name="value">
        <number>2</number>
@@ -533,6 +551,9 @@ p, li { white-space: pre-wrap; }
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
+      <property name="toolTip">
+       <string>Show both files in the current pair simultaniously.</string>
+      </property>
       <property name="text">
        <string/>
       </property>
@@ -545,6 +566,9 @@ p, li { white-space: pre-wrap; }
      <widget class="QDoubleSpinBox" name="der1DoubleSpinBox">
       <property name="enabled">
        <bool>false</bool>
+      </property>
+      <property name="toolTip">
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Set split detection sensetivity level.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
       <property name="prefix">
        <string>critical der. </string>
@@ -573,6 +597,9 @@ p, li { white-space: pre-wrap; }
         <horstretch>0</horstretch>
         <verstretch>0</verstretch>
        </sizepolicy>
+      </property>
+      <property name="toolTip">
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Vertical shift of signals. Changing this discards all split corrections for this file.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
       <property name="prefix">
        <string>vertical fit </string>
@@ -652,6 +679,9 @@ p, li { white-space: pre-wrap; }
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
+      <property name="toolTip">
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Show data for thesecondt file in the current pair. Must be the file, which stores signal, measured at the pre-edge of absorbtion. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      </property>
       <property name="text">
        <string>raw Pre-edge</string>
       </property>
@@ -671,6 +701,9 @@ p, li { white-space: pre-wrap; }
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
+      <property name="toolTip">
+       <string>Divide raw TEY signals on corresponding direct beam intensity signals before the normalisation.</string>
+      </property>
       <property name="text">
        <string>normalized on i-zero</string>
       </property>
@@ -680,6 +713,9 @@ p, li { white-space: pre-wrap; }
      <widget class="QDoubleSpinBox" name="der2DoubleSpinBox">
       <property name="enabled">
        <bool>false</bool>
+      </property>
+      <property name="toolTip">
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Set split detection sensetivity level.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
       <property name="prefix">
        <string>critical der. </string>
@@ -709,6 +745,9 @@ p, li { white-space: pre-wrap; }
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
+      <property name="toolTip">
+       <string>Show direct beam intensity signal.</string>
+      </property>
       <property name="text">
        <string>i-zero</string>
       </property>
@@ -727,6 +766,9 @@ p, li { white-space: pre-wrap; }
           <verstretch>0</verstretch>
          </sizepolicy>
         </property>
+        <property name="toolTip">
+         <string>Show *.csv files from working directory. </string>
+        </property>
         <property name="text">
          <string>show .csv</string>
         </property>
@@ -743,6 +785,9 @@ p, li { white-space: pre-wrap; }
           <verstretch>0</verstretch>
          </sizepolicy>
         </property>
+        <property name="toolTip">
+         <string>Select current working directory.</string>
+        </property>
         <property name="text">
          <string>folder</string>
         </property>
@@ -756,13 +801,20 @@ p, li { white-space: pre-wrap; }
           <verstretch>0</verstretch>
          </sizepolicy>
         </property>
+        <property name="toolTip">
+         <string>Current working directory.</string>
+        </property>
         <property name="text">
          <string>Current path</string>
         </property>
        </widget>
       </item>
       <item row="1" column="0" colspan="2">
-       <widget class="QTableWidget" name="fileTable"/>
+       <widget class="QTableWidget" name="fileTable">
+        <property name="toolTip">
+         <string>List of supported files in the working directory.</string>
+        </property>
+       </widget>
       </item>
       <item row="2" column="1">
        <widget class="QCheckBox" name="parBox">
@@ -771,6 +823,9 @@ p, li { white-space: pre-wrap; }
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
+        </property>
+        <property name="toolTip">
+         <string>Show *.PAR files from working directory. </string>
         </property>
         <property name="text">
          <string>show .PAR</string>
@@ -787,6 +842,9 @@ p, li { white-space: pre-wrap; }
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
+        </property>
+        <property name="toolTip">
+         <string>Select export directory and save there all selected files in subdirectories.</string>
         </property>
         <property name="text">
          <string>export</string>
@@ -805,6 +863,12 @@ p, li { white-space: pre-wrap; }
         <horstretch>0</horstretch>
         <verstretch>0</verstretch>
        </sizepolicy>
+      </property>
+      <property name="acceptDrops">
+       <bool>false</bool>
+      </property>
+      <property name="toolTip">
+       <string>Show raw TEY signal.</string>
       </property>
       <property name="text">
        <string>raw</string>
@@ -828,6 +892,9 @@ p, li { white-space: pre-wrap; }
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
+      <property name="toolTip">
+       <string>Show data for the first file in the current pair. Must be the file, which stores signal, measured at the edge of absorbtion. </string>
+      </property>
       <property name="text">
        <string>raw Edge</string>
       </property>
@@ -849,6 +916,9 @@ p, li { white-space: pre-wrap; }
         <horstretch>0</horstretch>
         <verstretch>0</verstretch>
        </sizepolicy>
+      </property>
+      <property name="toolTip">
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Vertical shift of signals. Changing this discards all split corrections for this file.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
       <property name="prefix">
        <string>vertical fit </string>
@@ -879,10 +949,13 @@ p, li { white-space: pre-wrap; }
        <string> pts</string>
       </property>
       <property name="minimum">
-       <number>2</number>
+       <number>3</number>
       </property>
       <property name="maximum">
        <number>99</number>
+      </property>
+      <property name="singleStep">
+       <number>2</number>
       </property>
       <property name="value">
        <number>5</number>
@@ -898,7 +971,7 @@ p, li { white-space: pre-wrap; }
        <string>pow. </string>
       </property>
       <property name="maximum">
-       <number>5</number>
+       <number>98</number>
       </property>
       <property name="value">
        <number>2</number>
@@ -914,10 +987,13 @@ p, li { white-space: pre-wrap; }
        <string> pts</string>
       </property>
       <property name="minimum">
-       <number>2</number>
+       <number>3</number>
       </property>
       <property name="maximum">
        <number>99</number>
+      </property>
+      <property name="singleStep">
+       <number>2</number>
       </property>
       <property name="value">
        <number>5</number>
